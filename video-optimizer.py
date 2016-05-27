@@ -34,7 +34,7 @@ else:
 
 # Options:
 
-parser = argparse.ArgumentParser(description = 'Video transcoder/processor (v4.0.2)')
+parser = argparse.ArgumentParser(description = 'Video transcoder/processor (v4.0.3)')
 #parser.add_argument('-a', nargs = 1, help = 'audio track (1 by default)')
 parser.add_argument('-b', action = 'store_true', help = 'Debug mode')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
@@ -363,8 +363,9 @@ def clean_temp_files():
     os.remove(TEMP_REMUX_FILE)
     os.remove(TEMP_AV_FILE_0)
     os.remove(TEMP_AV_FILE_1)
-  #except:
-  #  print '- Warning: error cleaning temporary files'
+  except:
+    #  print '- Warning: error cleaning temporary files'
+    pass
   return
 
 def process_file(f):
