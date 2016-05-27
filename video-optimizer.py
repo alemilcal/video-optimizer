@@ -34,7 +34,7 @@ else:
 
 # Options:
 
-parser = argparse.ArgumentParser(description = 'Video transcoder/processor (v4.0.1)')
+parser = argparse.ArgumentParser(description = 'Video transcoder/processor (v4.0.2)')
 #parser.add_argument('-a', nargs = 1, help = 'audio track (1 by default)')
 parser.add_argument('-b', action = 'store_true', help = 'Debug mode')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
