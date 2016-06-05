@@ -34,7 +34,7 @@ else:
 
 # Options:
 
-parser = argparse.ArgumentParser(description = 'Video transcoder/processor (v4.0.3)')
+parser = argparse.ArgumentParser(description = 'Video transcoder/processor (v4.0.4)')
 #parser.add_argument('-a', nargs = 1, help = 'audio track (1 by default)')
 parser.add_argument('-b', action = 'store_true', help = 'Debug mode')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
@@ -268,7 +268,15 @@ class MediaFile:
 
   def tag(self, sub_tracks_languages, sub_tracks_forced, output_file):
     if not args.m:
-      c = '%s "%s" --edit info --set title="%s"'%(MKVPROPEDIT_BIN, output_file, self.movie_name)
+      movnam = self.movie_name
+      #print "KKK"+movnam+"KKK"
+      movnam = movnam.split('/')
+      movnam = movnam[-1]
+      #print movnam
+      movnam = movnam.split('\\')
+      movnam = movnam[-1]
+      #print "KKK"+movnam+"KKK"
+      c = '%s "%s" --edit info --set title="%s"'%(MKVPROPEDIT_BIN, output_file, movnam)
       execute_command(c)
       if not args.e:
         c = '%s "%s" --edit track:a1 --set name="Spanish Default"'%(MKVPROPEDIT_BIN, output_file)
