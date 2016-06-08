@@ -34,7 +34,7 @@ else:
 
 # Options:
 
-parser = argparse.ArgumentParser(description = 'Video transcoder/processor (v4.0.4)')
+parser = argparse.ArgumentParser(description = 'Video transcoder/processor (v4.1.0)')
 #parser.add_argument('-a', nargs = 1, help = 'audio track (1 by default)')
 parser.add_argument('-b', action = 'store_true', help = 'Debug mode')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
@@ -87,7 +87,7 @@ class MediaInfo:
 
   def select_audio_track(self, l):
     print '* Searching for %s audio track...'%(l)
-    r = 0
+    r = -1
     for i in range(0, self.audio_tracks_count()):
       if not self.audio_descriptions[i] and self.audio_languages[i] == l:
         if (args.d and self.audio_channels[i] == 6 or not args.d and self.audio_channels[i] == 2):
@@ -157,6 +157,7 @@ class MediaFile:
       audcnt = int(o)
       # Audio CODECs
       o = subprocess.check_output('%s --Inform="General;%%Audio_Format_List%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
+      #print '*'+o+'*'
       o = o.rstrip()
       o = o.split(' / ')
       for i in range(0, audcnt):
@@ -169,6 +170,7 @@ class MediaFile:
         self.info.audio_languages.append(o[i])
       # Audio Channels
       o = subprocess.check_output('%s --Inform="Audio;%%Channel(s)%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
+      #print '*'+o+'*'
       for i in range(0, audcnt):
         self.info.audio_channels.append(int(o[0:1]))
         if o[1:4] == ' / ':
@@ -179,7 +181,7 @@ class MediaFile:
       o = subprocess.check_output('%s --Inform="Audio;%%Title%%***" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
       s = o.split('***')
       for t in range(0, len(s) - 1):
-        if 'descri' in s[t].lower():
+        if ('descri' in s[t].lower()) or ('comenta' in s[t].lower()) or ('comment' in s[t].lower()):
           self.info.audio_descriptions.append(True)
         else:
           self.info.audio_descriptions.append(False)
@@ -241,7 +243,8 @@ class MediaFile:
     else:
       if self.info.audio_channels[audio_track] == 2: # Stereo source
         if args.v:
-          codec = 'libfaac'
+          #codec = 'libfaac'
+          codec = 'aac -strict experimental'
           panopts = '-af "pan=stereo|c0<0.5*c0+0.5*c3+c1+0.5*c5|c1<0.5*c2+0.5*c4+c1+0.5*c5"'
         else:
           codec = 'copy'
@@ -252,7 +255,8 @@ class MediaFile:
           panopts = '-af "pan=3.1|c0<0.5*c0+0.5*c3|c1<c1|c2<0.5*c2+0.5*c4|c3<c5"'
         else:
           if args.v:
-            codec = 'libfaac'
+            #codec = 'libfaac'
+            codec = 'aac -strict experimental'
             panopts = '-af "pan=stereo|c0<0.5*c0+0.5*c3+c1+0.5*c5|c1<0.5*c2+0.5*c4+c1+0.5*c5"'
           else:
             codec = 'copy'
@@ -389,52 +393,100 @@ def process_file(f):
       return
 
   # Audio/sub tracks processing:
-  if args.e: # English + Spanish audio output
-    track_audio_0 = v.info.select_audio_track(ENGLISH)
-    track_audio_1 = v.info.select_audio_track(SPANISH)
-    track_sub_0 = v.info.select_sub_track(ENGLISH, True)
-    track_sub_1 = v.info.select_sub_track(ENGLISH, False)
-    track_sub_2 = v.info.select_sub_track(SPANISH, True)
-    track_sub_3 = v.info.select_sub_track(SPANISH, False)
+
+  track_audio_eng = v.info.select_audio_track(ENGLISH)
+  track_sub_eng_f = v.info.select_sub_track(ENGLISH, True)
+  track_sub_eng_n = v.info.select_sub_track(ENGLISH, False)
+  track_audio_spa = v.info.select_audio_track(SPANISH)
+  track_sub_spa_f = v.info.select_sub_track(SPANISH, True)
+  track_sub_spa_n = v.info.select_sub_track(SPANISH, False)
+
+  DUAL = False
+  if track_audio_spa >= 0:
+    track_audio_0 = track_audio_spa
   else:
-    track_audio_0 = v.info.select_audio_track(SPANISH)
-    track_audio_1 = None
-    track_sub_0 = v.info.select_sub_track(SPANISH, True)
-    track_sub_1 = v.info.select_sub_track(SPANISH, False)
-    track_sub_2 = -1
-    track_sub_3 = -1
-  sub_tracks_languages = []
-  sub_tracks_forced = []
+    if track_audio_eng >= 0:
+      track_audio_0 = track_audio_eng
+    else:
+      track_audio_0 = 0
+  if args.e:
+    if track_audio_eng >= 0:
+      track_audio_0 = track_audio_eng
+      if track_audio_spa >= 0:
+        DUAL = True
+        track_audio_1 = track_audio_spa
+
+  sub_list = []
+  if args.e:
+    if track_sub_eng_f >= 0:
+      sub_list.append(track_sub_eng_f)
+    if track_sub_eng_n >= 0:
+      sub_list.append(track_sub_eng_n)
+  if track_sub_spa_f >= 0:
+    sub_list.append(track_sub_spa_f)
+  if track_sub_spa_n >= 0:
+    sub_list.append(track_sub_spa_n)
+  while len(sub_list) < 4:
+    sub_list.append(-1)
+  track_sub_0 = sub_list[0]
+  track_sub_1 = sub_list[1]
+  track_sub_2 = sub_list[2]
+  track_sub_3 = sub_list[3]
+
+  #sub_tracks_languages = []
+  #sub_tracks_forced = []
+  #sub_tracks_0 = []
+  #if track_sub_0 >= 0:
+  #  sub_tracks_0.append(track_sub_0)
+  #  if args.e:
+  #    sub_tracks_languages.append(ENGLISH)
+  #  else:
+  #    sub_tracks_languages.append(SPANISH)
+  #  sub_tracks_forced.append(True)
+  #if track_sub_1 >= 0:
+  #  sub_tracks_0.append(track_sub_1)
+  #  if args.e:
+  #    sub_tracks_languages.append(ENGLISH)
+  #  else:
+  #    sub_tracks_languages.append(SPANISH)
+  #  sub_tracks_forced.append(False)
+  #sub_tracks_1 = []
+  #if track_sub_2 >= 0:
+  #  sub_tracks_1.append(track_sub_2)
+  #  sub_tracks_languages.append(SPANISH)
+  #  sub_tracks_forced.append(True)
+  #if track_sub_3 >= 0:
+  #  sub_tracks_1.append(track_sub_3)
+  #  sub_tracks_languages.append(SPANISH)
+  #  sub_tracks_forced.append(False)
+
   sub_tracks_0 = []
   if track_sub_0 >= 0:
     sub_tracks_0.append(track_sub_0)
-    if args.e:
-      sub_tracks_languages.append(ENGLISH)
-    else:
-      sub_tracks_languages.append(SPANISH)
-    sub_tracks_forced.append(True)
   if track_sub_1 >= 0:
     sub_tracks_0.append(track_sub_1)
-    if args.e:
-      sub_tracks_languages.append(ENGLISH)
-    else:
-      sub_tracks_languages.append(SPANISH)
-    sub_tracks_forced.append(False)
-  sub_tracks_1 = []
   if track_sub_2 >= 0:
-    sub_tracks_1.append(track_sub_2)
-    sub_tracks_languages.append(SPANISH)
-    sub_tracks_forced.append(True)
+    sub_tracks_0.append(track_sub_2)
   if track_sub_3 >= 0:
-    sub_tracks_1.append(track_sub_3)
-    sub_tracks_languages.append(SPANISH)
-    sub_tracks_forced.append(False)
-  print '* Subtitle track selected:'
-  print sub_tracks_languages
+    sub_tracks_0.append(track_sub_3)
+  sub_tracks_1 = []
+
+  sub_tracks_languages = []
+  sub_tracks_forced = []
+  for t in sub_tracks_0:
+    sub_tracks_languages.append(v.info.sub_languages[t])
+    sub_tracks_forced.append(v.info.sub_forced[t])
+
+  print '* Subtitle track catalog:',
+  print sub_tracks_languages,
   print sub_tracks_forced
-  v.transcode_audio_track(track_audio_0, sub_tracks_0, TEMP_AV_FILE_0)
-  audio_track_files = [TEMP_AV_FILE_0]
-  if args.e: # English + Spanish audio output
+
+  if not DUAL:
+    v.transcode_audio_track(track_audio_0, sub_tracks_0, TEMP_AV_FILE_0)
+    audio_track_files = [TEMP_AV_FILE_0]
+  else:
+    v.transcode_audio_track(track_audio_0, sub_tracks_0, TEMP_AV_FILE_0)
+    audio_track_files = [TEMP_AV_FILE_0]
     v.transcode_audio_track(track_audio_1, sub_tracks_1, TEMP_AV_FILE_1)
     audio_track_files.append(TEMP_AV_FILE_1)
 
