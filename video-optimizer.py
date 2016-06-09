@@ -34,7 +34,7 @@ else:
 
 # Options:
 
-parser = argparse.ArgumentParser(description = 'Video transcoder/processor (v4.1.0)')
+parser = argparse.ArgumentParser(description = 'Video transcoder/processor (v4.2.0)')
 #parser.add_argument('-a', nargs = 1, help = 'audio track (1 by default)')
 parser.add_argument('-b', action = 'store_true', help = 'Debug mode')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
@@ -59,6 +59,23 @@ HANDBRAKE_TEST_OPTS = ''
 if args.t:
   FFMPEG_TEST_OPTS = ' -t %d '%(TEST_TIME)
   HANDBRAKE_TEST_OPTS = ' --stop-at duration:%s '%(TEST_TIME)
+
+# Auxiliar functions:
+
+def language_code(name):
+  if name == SPANISH:
+    return 'spa'
+  else:
+    if name == ENGLISH:
+      return 'eng'
+    else:
+      return 'unk'
+
+def boolean2integer(b):
+  if b:
+    return 1
+  else:
+    return 0
 
 # Classes:
 
@@ -89,12 +106,22 @@ class MediaInfo:
     print '* Searching for %s audio track...'%(l)
     r = -1
     for i in range(0, self.audio_tracks_count()):
-      if not self.audio_descriptions[i] and self.audio_languages[i] == l:
-        if (args.d and self.audio_channels[i] == 6 or not args.d and self.audio_channels[i] == 2):
+      #print self.audio_descriptions[i]
+      #print self.audio_languages[i]
+      #print self.audio_channels[i]
+      if (not self.audio_descriptions[i]) and self.audio_languages[i] == l:
+        if (args.d and self.audio_channels[i] == 6) or ((not args.d) and self.audio_channels[i] == 2):
           r = i
-    for i in range(0, self.audio_tracks_count()):
-      if not self.audio_descriptions[i] and self.audio_languages[i] == l:
-        r = i
+          break
+    if r < 0:
+      print '* Searching for %s audio track (2nd lap)...'%(l)
+      for i in range(0, self.audio_tracks_count()):
+        #print self.audio_descriptions[i]
+        #print self.audio_languages[i]
+        #print self.audio_channels[i]
+        if (not self.audio_descriptions[i]) and self.audio_languages[i] == l:
+          r = i
+          break
     print '- Audio track selected = %d'%(r)
     return r
 
@@ -207,7 +234,7 @@ class MediaFile:
           self.info.sub_forced.append(False)
       self.info.print_info()
 
-  def transcode(self, input_file):
+  def transcode(self, input_file, aud_list, sub_list):
     print '* Transcoding media file "%s" to "%s"...'%(input_file, self.output_file)
     options = ' --preset="Normal" --loose-anamorphic '
     if args.x:
@@ -224,15 +251,19 @@ class MediaFile:
     if args.x:
       quantizer = quantizer + 1
     options += ' --quality %d '%(quantizer)
-    if args.e:
-      audopts = '--audio 1,2'
-    else:
-      audopts = '--audio 1'
+    #if args.e:
+    #  audopts = '--audio 1,2'
+    #else:
+    #  audopts = '--audio 1'
     if args.d or args.v:
-      audopts += ' --aencoder copy'
+      audopts = '--aencoder copy'
     else:
-      audopts += ' --mixdown stereo --drc 2.0'
-    c = '%s %s -i "%s" --optimize --large-file --markers %s %s --subtitle 1,2,3,4 -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, self.output_file)
+      audopts = '--mixdown stereo --drc 2.0'
+    #c = '%s %s -i "%s" --optimize --large-file --markers %s %s --subtitle 1,2,3,4 -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, self.output_file)
+    audtracksnumbers = ','.join(str(x + 1) for x in aud_list)
+    audopts += ' --audio %s'%(audtracksnumbers)
+    subtracksnumbers = ','.join(str(x + 1) for x in sub_list)
+    c = '%s %s -i "%s" --optimize --large-file --markers %s %s --subtitle %s -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, subtracksnumbers, self.output_file)
     execute_command(c)
 
   def transcode_audio_track(self, audio_track, sub_tracks, output_file):
@@ -270,7 +301,7 @@ class MediaFile:
     c = '%s %s -threads 4 -y -i "%s" -vn -map 0:a:%d -c:a %s %s %s -f matroska "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, self.input_file, audio_track, codec, panopts, subopts, output_file)
     execute_command(c)
 
-  def tag(self, sub_tracks_languages, sub_tracks_forced, output_file):
+  def tag(self, aud_list, sub_list, output_file):
     if not args.m:
       movnam = self.movie_name
       #print "KKK"+movnam+"KKK"
@@ -280,65 +311,49 @@ class MediaFile:
       movnam = movnam.split('\\')
       movnam = movnam[-1]
       #print "KKK"+movnam+"KKK"
+      # Title
       c = '%s "%s" --edit info --set title="%s"'%(MKVPROPEDIT_BIN, output_file, movnam)
       execute_command(c)
-      if not args.e:
-        c = '%s "%s" --edit track:a1 --set name="Spanish Default"'%(MKVPROPEDIT_BIN, output_file)
+      # Audio tracks
+      print aud_list
+      for n in range(0, len(aud_list)):
+        name = self.info.audio_languages[n]
+        code = language_code(name)
+        defa = boolean2integer(n == 0)
+        forc = boolean2integer(n == 0)
+        if forc == 1:
+          name += ' Forced'
+        if defa == 1:
+          name += ' Default'
+        c = '%s "%s" --edit track:a%d --set name="%s"'%(MKVPROPEDIT_BIN, output_file, n, name)
         execute_command(c)
-        c = '%s "%s" --edit track:a1 --set language=spa'%(MKVPROPEDIT_BIN, output_file)
+        c = '%s "%s" --edit track:a%d --set language=%s'%(MKVPROPEDIT_BIN, output_file, n, code)
         execute_command(c)
-        c = '%s "%s" --edit track:a1 --set flag-default=1'%(MKVPROPEDIT_BIN, output_file)
+        c = '%s "%s" --edit track:a%d --set flag-default=%d'%(MKVPROPEDIT_BIN, output_file, n, defa)
         execute_command(c)
-        c = '%s "%s" --edit track:a1 --set flag-forced=1'%(MKVPROPEDIT_BIN, output_file)
+        c = '%s "%s" --edit track:a%d --set flag-forced=%d'%(MKVPROPEDIT_BIN, output_file, n, forc)
         execute_command(c)
-      else:
-        c = '%s "%s" --edit track:a1 --set name="English Default"'%(MKVPROPEDIT_BIN, output_file)
+      # Subtitle tracks
+      print sub_list
+      for n in range(0, len(sub_list)):
+        name = self.info.sub_languages[n]
+        code = language_code(name)
+        defa = boolean2integer(n == 0)
+        forc = boolean2integer(self.info.sub_forced[n])
+        if forc == 1:
+          name += ' Forced'
+        if defa == 1:
+          name += ' Default'
+        c = '%s "%s" --edit track:s%d --set name="%s"'%(MKVPROPEDIT_BIN, output_file, n, name)
         execute_command(c)
-        c = '%s "%s" --edit track:a1 --set language=eng'%(MKVPROPEDIT_BIN, output_file)
+        c = '%s "%s" --edit track:s%d --set language=%s'%(MKVPROPEDIT_BIN, output_file, n, code)
         execute_command(c)
-        c = '%s "%s" --edit track:a1 --set flag-default=1'%(MKVPROPEDIT_BIN, output_file)
+        c = '%s "%s" --edit track:s%d --set flag-default=%d'%(MKVPROPEDIT_BIN, output_file, n, defa)
         execute_command(c)
-        c = '%s "%s" --edit track:a1 --set flag-forced=1'%(MKVPROPEDIT_BIN, output_file)
-        execute_command(c)
-        c = '%s "%s" --edit track:a2 --set name="Spanish"'%(MKVPROPEDIT_BIN, output_file)
-        execute_command(c)
-        c = '%s "%s" --edit track:a2 --set language=spa'%(MKVPROPEDIT_BIN, output_file)
-        execute_command(c)
-        c = '%s "%s" --edit track:a2 --set flag-default=0'%(MKVPROPEDIT_BIN, output_file)
-        execute_command(c)
-        c = '%s "%s" --edit track:a2 --set flag-forced=0'%(MKVPROPEDIT_BIN, output_file)
-        execute_command(c)
-      for i in range(0, len(sub_tracks_languages)):
-        l = sub_tracks_languages[i]
-        if l == SPANISH:
-          l = 'spa'
-        else:
-          if l == ENGLISH:
-            l = 'eng'
-        d = 0
-        if i == 0:
-          d = 1
-        f = 0
-        if sub_tracks_forced[i]:
-          f = 1
-        subtrackname = 'Other'
-        if l == 'spa':
-          subtrackname = 'Spanish'
-        else:
-          if l == 'eng':
-            subtrackname = 'English'
-        if f == 1:
-          subtrackname = subtrackname + ' Forced'
-        c = '%s "%s" --edit track:s%d --set name="%s"'%(MKVPROPEDIT_BIN, output_file, i + 1, subtrackname)
-        execute_command(c)
-        c = '%s "%s" --edit track:s%d --set language=%s'%(MKVPROPEDIT_BIN, output_file, i + 1, l)
-        execute_command(c)
-        c = '%s "%s" --edit track:s%d --set flag-default=%d'%(MKVPROPEDIT_BIN, output_file, i + 1, d)
-        execute_command(c)
-        c = '%s "%s" --edit track:s%d --set flag-forced=%d'%(MKVPROPEDIT_BIN, output_file, i + 1, f)
+        c = '%s "%s" --edit track:s%d --set flag-forced=%d'%(MKVPROPEDIT_BIN, output_file, n, forc)
         execute_command(c)
 
-  def remux_tracks(self, original_file, av_files, sub_tracks_languages, sub_tracks_forced, output_file):
+  def remux_tracks(self, original_file, av_files, aud_list, sub_list, output_file):
     print '* Remuxing to "%s"...'%(output_file)
     if self.extension == 'avi':
       track_files = ' -fflags +genpts '
@@ -350,15 +365,15 @@ class MediaFile:
     extra_map = ''
     if len(av_files) > 1:
       extra_map += ' -map 2:a:0 '
-    if len(av_files) > 1 and not sub_tracks_languages == []:
-      extra_map += ' -map 2:s '
-    if not sub_tracks_languages == []:
+    #if len(av_files) > 1 and not sub_tracks_languages == []:
+    #  extra_map += ' -map 2:s '
+    if not sub_list == []:
       extra_map += ' -map 1:s '
     c = '%s %s %s -threads 4 -y -c:v copy -map 0:v:0 -c:a copy -c:s copy -map 1:a:0 %s -f matroska -map_metadata -1 "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, track_files, extra_map, output_file)
     execute_command(c)
     # Pre-tagging if MP4 output:
     if not args.k:
-      self.tag(sub_tracks_languages, sub_tracks_forced, output_file)
+      self.tag(aud_list, sub_list, output_file)
 
 # Subroutines:
 
@@ -401,6 +416,8 @@ def process_file(f):
   track_sub_spa_f = v.info.select_sub_track(SPANISH, True)
   track_sub_spa_n = v.info.select_sub_track(SPANISH, False)
 
+  track_audio_0 = -1
+  track_audio_1 = -1
   DUAL = False
   if track_audio_spa >= 0:
     track_audio_0 = track_audio_spa
@@ -416,6 +433,10 @@ def process_file(f):
         DUAL = True
         track_audio_1 = track_audio_spa
 
+  aud_list = [track_audio_0]
+  if track_audio_1 >= 0:
+    aud_list.append(track_audio_1)
+
   sub_list = []
   if args.e:
     if track_sub_eng_f >= 0:
@@ -426,80 +447,43 @@ def process_file(f):
     sub_list.append(track_sub_spa_f)
   if track_sub_spa_n >= 0:
     sub_list.append(track_sub_spa_n)
-  while len(sub_list) < 4:
-    sub_list.append(-1)
-  track_sub_0 = sub_list[0]
-  track_sub_1 = sub_list[1]
-  track_sub_2 = sub_list[2]
-  track_sub_3 = sub_list[3]
+  #while len(sub_list) < 4:
+  #  sub_list.append(-1)
+  #track_sub_0 = sub_list[0]
+  #track_sub_1 = sub_list[1]
+  #track_sub_2 = sub_list[2]
+  #track_sub_3 = sub_list[3]
 
-  #sub_tracks_languages = []
-  #sub_tracks_forced = []
   #sub_tracks_0 = []
   #if track_sub_0 >= 0:
   #  sub_tracks_0.append(track_sub_0)
-  #  if args.e:
-  #    sub_tracks_languages.append(ENGLISH)
-  #  else:
-  #    sub_tracks_languages.append(SPANISH)
-  #  sub_tracks_forced.append(True)
   #if track_sub_1 >= 0:
   #  sub_tracks_0.append(track_sub_1)
-  #  if args.e:
-  #    sub_tracks_languages.append(ENGLISH)
-  #  else:
-  #    sub_tracks_languages.append(SPANISH)
-  #  sub_tracks_forced.append(False)
-  #sub_tracks_1 = []
   #if track_sub_2 >= 0:
-  #  sub_tracks_1.append(track_sub_2)
-  #  sub_tracks_languages.append(SPANISH)
-  #  sub_tracks_forced.append(True)
+  #  sub_tracks_0.append(track_sub_2)
   #if track_sub_3 >= 0:
-  #  sub_tracks_1.append(track_sub_3)
-  #  sub_tracks_languages.append(SPANISH)
-  #  sub_tracks_forced.append(False)
-
-  sub_tracks_0 = []
-  if track_sub_0 >= 0:
-    sub_tracks_0.append(track_sub_0)
-  if track_sub_1 >= 0:
-    sub_tracks_0.append(track_sub_1)
-  if track_sub_2 >= 0:
-    sub_tracks_0.append(track_sub_2)
-  if track_sub_3 >= 0:
-    sub_tracks_0.append(track_sub_3)
-  sub_tracks_1 = []
-
-  sub_tracks_languages = []
-  sub_tracks_forced = []
-  for t in sub_tracks_0:
-    sub_tracks_languages.append(v.info.sub_languages[t])
-    sub_tracks_forced.append(v.info.sub_forced[t])
-
-  print '* Subtitle track catalog:',
-  print sub_tracks_languages,
-  print sub_tracks_forced
+  #  sub_tracks_0.append(track_sub_3)
+  #sub_tracks_1 = []
 
   if not DUAL:
-    v.transcode_audio_track(track_audio_0, sub_tracks_0, TEMP_AV_FILE_0)
+    v.transcode_audio_track(track_audio_0, sub_list, TEMP_AV_FILE_0)
     audio_track_files = [TEMP_AV_FILE_0]
   else:
-    v.transcode_audio_track(track_audio_0, sub_tracks_0, TEMP_AV_FILE_0)
+    v.transcode_audio_track(track_audio_0, sub_list, TEMP_AV_FILE_0)
     audio_track_files = [TEMP_AV_FILE_0]
-    v.transcode_audio_track(track_audio_1, sub_tracks_1, TEMP_AV_FILE_1)
+    v.transcode_audio_track(track_audio_1, [], TEMP_AV_FILE_1)
     audio_track_files.append(TEMP_AV_FILE_1)
 
   # Track remuxing:
   #v.remux_tracks(TEMP_REMUX_FILE, audio_track_files)
-  v.remux_tracks(f, audio_track_files, sub_tracks_languages, sub_tracks_forced, TEMP_REMUX_FILE)
+  v.remux_tracks(f, audio_track_files, aud_list, sub_list, TEMP_REMUX_FILE)
 
   # Video(/Audio) transcoding:
-  v.transcode(TEMP_REMUX_FILE)
+  v.transcode(TEMP_REMUX_FILE, aud_list, sub_list)
 
   # Post-tagging if MKV output:
   if args.k:
-    v.tag(sub_tracks_languages, sub_tracks_forced, v.output_file)
+    v.tag(aud_list, sub_list, v.output_file)
 
   if not args.b and not args.z:
     clean_temp_files()
