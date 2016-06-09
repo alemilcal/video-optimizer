@@ -34,7 +34,7 @@ else:
 
 # Options:
 
-parser = argparse.ArgumentParser(description = 'Video transcoder/processor (v4.2.0)')
+parser = argparse.ArgumentParser(description = 'Video transcoder/processor (v4.2.1)')
 #parser.add_argument('-a', nargs = 1, help = 'audio track (1 by default)')
 parser.add_argument('-b', action = 'store_true', help = 'Debug mode')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
@@ -298,7 +298,7 @@ class MediaFile:
         subopts += ' -map 0:s:%d '%(sub_tracks[i])
     else:
       subopts = ''
-    c = '%s %s -threads 4 -y -i "%s" -vn -map 0:a:%d -c:a %s %s %s -f matroska "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, self.input_file, audio_track, codec, panopts, subopts, output_file)
+    c = '%s %s -threads 4 -y -i "%s" -vn -c:a %s %s -map 0:a:%d %s -f matroska "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, self.input_file, codec, panopts, audio_track, subopts, output_file)
     execute_command(c)
 
   def tag(self, aud_list, sub_list, output_file):
@@ -369,7 +369,7 @@ class MediaFile:
     #  extra_map += ' -map 2:s '
     if not sub_list == []:
       extra_map += ' -map 1:s '
-    c = '%s %s %s -threads 4 -y -c:v copy -map 0:v:0 -c:a copy -c:s copy -map 1:a:0 %s -f matroska -map_metadata -1 "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, track_files, extra_map, output_file)
+    c = '%s %s %s -threads 4 -y -c:v copy -c:a copy -c:s copy -map 0:v:0 -map 1:a:0 %s -f matroska -map_metadata -1 "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, track_files, extra_map, output_file)
     execute_command(c)
     # Pre-tagging if MP4 output:
     if not args.k:
