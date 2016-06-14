@@ -6,6 +6,7 @@ import os, string, argparse, subprocess, distutils.spawn, sys
 
 # Constants:
 
+VERSION = 'v4.2.2'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 22
@@ -34,7 +35,7 @@ else:
 
 # Options:
 
-parser = argparse.ArgumentParser(description = 'Video transcoder/processor (v4.2.1)')
+parser = argparse.ArgumentParser(description = 'Video transcoder/processor (%s)'%(VERSION))
 #parser.add_argument('-a', nargs = 1, help = 'audio track (1 by default)')
 parser.add_argument('-b', action = 'store_true', help = 'Debug mode')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
@@ -215,23 +216,30 @@ class MediaFile:
       # Subtitle tracks count
       o = subprocess.check_output('%s --Inform="General;%%TextCount%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
       o = o.rstrip()
-      subcnt = int(o)
+      if o == '':
+        subcnt = 0
+      else:
+        subcnt = int(o)
       print '- Subtitle tracks found = %d'%(subcnt)
-      # Subtitle languages
-      o = subprocess.check_output('%s --Inform="General;%%Text_Language_List%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
-      o = o.rstrip()
-      o = o.split(' / ')
-      self.info.sub_languages = o
-      # Subtitle forced
-      o = subprocess.check_output('%s --Inform="Text;%%Forced%%/" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
-      o = o.rstrip()
-      o = o.split('/')
-      self.info_sub_forced = []
-      for i in range(0, len(o) - 1):
-        if o[i] == 'Yes':
-          self.info.sub_forced.append(True)
-        else:
-          self.info.sub_forced.append(False)
+      if subcnt == 0:
+        self.info.sub_languages = []
+        self.info.sub_forced = []
+      else:
+        # Subtitle languages
+        o = subprocess.check_output('%s --Inform="General;%%Text_Language_List%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
+        o = o.rstrip()
+        o = o.split(' / ')
+        self.info.sub_languages = o
+        # Subtitle forced
+        o = subprocess.check_output('%s --Inform="Text;%%Forced%%/" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
+        o = o.rstrip()
+        o = o.split('/')
+        self.info_sub_forced = []
+        for i in range(0, len(o) - 1):
+          if o[i] == 'Yes':
+            self.info.sub_forced.append(True)
+          else:
+            self.info.sub_forced.append(False)
       self.info.print_info()
 
   def transcode(self, input_file, aud_list, sub_list):
@@ -262,8 +270,11 @@ class MediaFile:
     #c = '%s %s -i "%s" --optimize --large-file --markers %s %s --subtitle 1,2,3,4 -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, self.output_file)
     audtracksnumbers = ','.join(str(x + 1) for x in aud_list)
     audopts += ' --audio %s'%(audtracksnumbers)
-    subtracksnumbers = ','.join(str(x + 1) for x in sub_list)
-    c = '%s %s -i "%s" --optimize --large-file --markers %s %s --subtitle %s -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, subtracksnumbers, self.output_file)
+    if self.info.sub_tracks_count() == 0:
+      subopts = ''
+    else:
+      subopts = '--subtitle ' + ','.join(str(x + 1) for x in sub_list)
+    c = '%s %s -i "%s" --optimize --large-file --markers %s %s %s -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, subopts, self.output_file)
     execute_command(c)
 
   def transcode_audio_track(self, audio_track, sub_tracks, output_file):
@@ -325,13 +336,13 @@ class MediaFile:
           name += ' Forced'
         if defa == 1:
           name += ' Default'
-        c = '%s "%s" --edit track:a%d --set name="%s"'%(MKVPROPEDIT_BIN, output_file, n, name)
+        c = '%s "%s" --edit track:a%d --set name="%s"'%(MKVPROPEDIT_BIN, output_file, n + 1, name)
         execute_command(c)
-        c = '%s "%s" --edit track:a%d --set language=%s'%(MKVPROPEDIT_BIN, output_file, n, code)
+        c = '%s "%s" --edit track:a%d --set language=%s'%(MKVPROPEDIT_BIN, output_file, n + 1, code)
         execute_command(c)
-        c = '%s "%s" --edit track:a%d --set flag-default=%d'%(MKVPROPEDIT_BIN, output_file, n, defa)
+        c = '%s "%s" --edit track:a%d --set flag-default=%d'%(MKVPROPEDIT_BIN, output_file, n + 1, defa)
         execute_command(c)
-        c = '%s "%s" --edit track:a%d --set flag-forced=%d'%(MKVPROPEDIT_BIN, output_file, n, forc)
+        c = '%s "%s" --edit track:a%d --set flag-forced=%d'%(MKVPROPEDIT_BIN, output_file, n + 1, forc)
         execute_command(c)
       # Subtitle tracks
       print sub_list
@@ -344,13 +355,13 @@ class MediaFile:
           name += ' Forced'
         if defa == 1:
           name += ' Default'
-        c = '%s "%s" --edit track:s%d --set name="%s"'%(MKVPROPEDIT_BIN, output_file, n, name)
+        c = '%s "%s" --edit track:s%d --set name="%s"'%(MKVPROPEDIT_BIN, output_file, n + 1, name)
         execute_command(c)
-        c = '%s "%s" --edit track:s%d --set language=%s'%(MKVPROPEDIT_BIN, output_file, n, code)
+        c = '%s "%s" --edit track:s%d --set language=%s'%(MKVPROPEDIT_BIN, output_file, n + 1, code)
         execute_command(c)
-        c = '%s "%s" --edit track:s%d --set flag-default=%d'%(MKVPROPEDIT_BIN, output_file, n, defa)
+        c = '%s "%s" --edit track:s%d --set flag-default=%d'%(MKVPROPEDIT_BIN, output_file, n + 1, defa)
         execute_command(c)
-        c = '%s "%s" --edit track:s%d --set flag-forced=%d'%(MKVPROPEDIT_BIN, output_file, n, forc)
+        c = '%s "%s" --edit track:s%d --set flag-forced=%d'%(MKVPROPEDIT_BIN, output_file, n + 1, forc)
         execute_command(c)
 
   def remux_tracks(self, original_file, av_files, aud_list, sub_list, output_file):
