@@ -6,7 +6,7 @@ import os, string, argparse, subprocess, distutils.spawn, sys
 
 # Constants:
 
-VERSION = 'v4.2.2'
+VERSION = 'v4.2.4'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 22
@@ -268,12 +268,24 @@ class MediaFile:
     else:
       audopts = '--mixdown stereo --drc 2.0'
     #c = '%s %s -i "%s" --optimize --large-file --markers %s %s --subtitle 1,2,3,4 -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, self.output_file)
-    audtracksnumbers = ','.join(str(x + 1) for x in aud_list)
-    audopts += ' --audio %s'%(audtracksnumbers)
-    if self.info.sub_tracks_count() == 0:
-      subopts = ''
-    else:
-      subopts = '--subtitle ' + ','.join(str(x + 1) for x in sub_list)
+    #audtracksnumbers = ','.join(str(x + 1) for x in aud_list)
+    #audopts += ' --audio %s'%(audtracksnumbers)
+    #if self.info.sub_tracks_count() == 0:
+    #  subopts = ''
+    #else:
+    #  subopts = '--subtitle ' + ','.join(str(x + 1) for x in sub_list)
+    audopts = ''
+    if len(aud_list) > 0:
+      audopts += '--audio '
+      for n in range(0, len(aud_list)):
+        audopts += '%d,'%(n + 1)
+      audopts = audopts[:-1]
+    subopts = ''
+    if len(sub_list) > 0:
+      subopts += '--subtitle '
+      for n in range(0, len(sub_list)):
+        subopts += '%d,'%(n + 1)
+      subopts = subopts[:-1]
     c = '%s %s -i "%s" --optimize --large-file --markers %s %s %s -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, subopts, self.output_file)
     execute_command(c)
 
@@ -328,7 +340,7 @@ class MediaFile:
       # Audio tracks
       print aud_list
       for n in range(0, len(aud_list)):
-        name = self.info.audio_languages[n]
+        name = self.info.audio_languages[aud_list[n]]
         code = language_code(name)
         defa = boolean2integer(n == 0)
         forc = boolean2integer(n == 0)
@@ -347,10 +359,10 @@ class MediaFile:
       # Subtitle tracks
       print sub_list
       for n in range(0, len(sub_list)):
-        name = self.info.sub_languages[n]
+        name = self.info.sub_languages[sub_list[n]]
         code = language_code(name)
         defa = boolean2integer(n == 0)
-        forc = boolean2integer(self.info.sub_forced[n])
+        forc = boolean2integer(self.info.sub_forced[sub_list[n]])
         if forc == 1:
           name += ' Forced'
         if defa == 1:
