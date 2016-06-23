@@ -6,7 +6,7 @@ import os, string, argparse, subprocess, distutils.spawn, sys
 
 # Constants:
 
-VERSION = 'v4.2.4'
+VERSION = 'v4.3.0'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 22
@@ -44,6 +44,7 @@ parser.add_argument('-f', action = 'store_true', help = 'Full HD output (high qu
 parser.add_argument('-k', action = 'store_true', help = 'Matroska (MKV) output')
 parser.add_argument('-m', action = 'store_true', help = 'Skip adding metadata')
 parser.add_argument('-o', nargs = 1, help = 'Output path')
+parser.add_argument('-p', action = 'store_true', help = 'Prioritize default audio tracks (instead looking for adequate amount of channels)')
 parser.add_argument('-q', nargs = 1, help = 'Quality factor (%d by default)'%(VIDEO_QUALITY))
 parser.add_argument('-r', action = 'store_true', help = 'Rebuild original folder structure')
 #parser.add_argument('-s', nargs = 1, help = 'Subtitle track (spanish forced searched by default / 0 disables subs)')
@@ -87,6 +88,7 @@ class MediaInfo:
     self.audio_languages = []
     self.audio_channels = []
     self.audio_descriptions = []
+    self.audio_default = []
     self.sub_languages = []
     self.sub_forced = []
 
@@ -99,27 +101,26 @@ class MediaInfo:
   def print_info(self):
     print '* Media info found:'
     for t in range(0, self.audio_tracks_count()):
-      print ('- Audio track %d: Codec = %s, Language = %s, Channels = %d, Audio Description = %s'%(t, self.audio_codec[t], self.audio_languages[t], self.audio_channels[t], self.audio_descriptions[t]))
+      print '- Audio track %d: Codec = %s, Language = %s, Channels = %d, Audio Description = %s, Default = %s'%(t, self.audio_codec[t], self.audio_languages[t], self.audio_channels[t], self.audio_descriptions[t], self.audio_default[t])
     for t in range(0, self.sub_tracks_count()):
-      print ('- Subtitle track %d: Language = %s, Forced = %s'%(t, self.sub_languages[t], self.sub_forced[t]))
+      print '- Subtitle track %d: Language = %s, Forced = %s'%(t, self.sub_languages[t], self.sub_forced[t])
 
   def select_audio_track(self, l):
     print '* Searching for %s audio track...'%(l)
     r = -1
     for i in range(0, self.audio_tracks_count()):
-      #print self.audio_descriptions[i]
-      #print self.audio_languages[i]
-      #print self.audio_channels[i]
-      if (not self.audio_descriptions[i]) and self.audio_languages[i] == l:
-        if (args.d and self.audio_channels[i] == 6) or ((not args.d) and self.audio_channels[i] == 2):
+      if not args.p:
+        if (not self.audio_descriptions[i]) and self.audio_languages[i] == l:
+          if (args.d and self.audio_channels[i] == 6) or ((not args.d) and self.audio_channels[i] == 2):
+            r = i
+            break
+      else: # Prioritize default audio tracks
+        if self.audio_languages[i] == l and self.audio_default[i]:
           r = i
           break
     if r < 0:
       print '* Searching for %s audio track (2nd lap)...'%(l)
       for i in range(0, self.audio_tracks_count()):
-        #print self.audio_descriptions[i]
-        #print self.audio_languages[i]
-        #print self.audio_channels[i]
         if (not self.audio_descriptions[i]) and self.audio_languages[i] == l:
           r = i
           break
@@ -213,6 +214,16 @@ class MediaFile:
           self.info.audio_descriptions.append(True)
         else:
           self.info.audio_descriptions.append(False)
+      # Audio default
+      o = subprocess.check_output('%s --Inform="Audio;%%Default%%/" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
+      o = o.rstrip()
+      o = o.split('/')
+      self.info.audio_default = []
+      for i in range(0, len(o) - 1):
+        if o[i] == 'Yes':
+          self.info.audio_default.append(True)
+        else:
+          self.info.audio_default.append(False)
       # Subtitle tracks count
       o = subprocess.check_output('%s --Inform="General;%%TextCount%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
       o = o.rstrip()
@@ -234,7 +245,7 @@ class MediaFile:
         o = subprocess.check_output('%s --Inform="Text;%%Forced%%/" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
         o = o.rstrip()
         o = o.split('/')
-        self.info_sub_forced = []
+        self.info.sub_forced = []
         for i in range(0, len(o) - 1):
           if o[i] == 'Yes':
             self.info.sub_forced.append(True)
