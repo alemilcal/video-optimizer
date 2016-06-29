@@ -6,7 +6,7 @@ import os, string, argparse, subprocess, distutils.spawn, sys
 
 # Constants:
 
-VERSION = 'v4.3.0'
+VERSION = 'v4.4.0'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 22
@@ -48,6 +48,7 @@ parser.add_argument('-p', action = 'store_true', help = 'Prioritize default audi
 parser.add_argument('-q', nargs = 1, help = 'Quality factor (%d by default)'%(VIDEO_QUALITY))
 parser.add_argument('-r', action = 'store_true', help = 'Rebuild original folder structure')
 #parser.add_argument('-s', nargs = 1, help = 'Subtitle track (spanish forced searched by default / 0 disables subs)')
+parser.add_argument('--nosub', action = 'store_true', help = 'No subtitles')
 parser.add_argument('-t', action = 'store_true', help = 'Test mode (only the first %d s of video are processed)'%(TEST_TIME))
 parser.add_argument('-v', action = 'store_true', help = 'Central speaker (voice) boost [BETA]')
 parser.add_argument('-w', action = 'store_true', help = 'Overwrite existing files (skip by default)')
@@ -349,7 +350,7 @@ class MediaFile:
       c = '%s "%s" --edit info --set title="%s"'%(MKVPROPEDIT_BIN, output_file, movnam)
       execute_command(c)
       # Audio tracks
-      print aud_list
+      #print aud_list
       for n in range(0, len(aud_list)):
         name = self.info.audio_languages[aud_list[n]]
         code = language_code(name)
@@ -368,7 +369,7 @@ class MediaFile:
         c = '%s "%s" --edit track:a%d --set flag-forced=%d'%(MKVPROPEDIT_BIN, output_file, n + 1, forc)
         execute_command(c)
       # Subtitle tracks
-      print sub_list
+      #print sub_list
       for n in range(0, len(sub_list)):
         name = self.info.sub_languages[sub_list[n]]
         code = language_code(name)
@@ -472,32 +473,16 @@ def process_file(f):
     aud_list.append(track_audio_1)
 
   sub_list = []
-  if args.e:
-    if track_sub_eng_f >= 0:
-      sub_list.append(track_sub_eng_f)
-    if track_sub_eng_n >= 0:
-      sub_list.append(track_sub_eng_n)
-  if track_sub_spa_f >= 0:
-    sub_list.append(track_sub_spa_f)
-  if track_sub_spa_n >= 0:
-    sub_list.append(track_sub_spa_n)
-  #while len(sub_list) < 4:
-  #  sub_list.append(-1)
-  #track_sub_0 = sub_list[0]
-  #track_sub_1 = sub_list[1]
-  #track_sub_2 = sub_list[2]
-  #track_sub_3 = sub_list[3]
-
-  #sub_tracks_0 = []
-  #if track_sub_0 >= 0:
-  #  sub_tracks_0.append(track_sub_0)
-  #if track_sub_1 >= 0:
-  #  sub_tracks_0.append(track_sub_1)
-  #if track_sub_2 >= 0:
-  #  sub_tracks_0.append(track_sub_2)
-  #if track_sub_3 >= 0:
-  #  sub_tracks_0.append(track_sub_3)
-  #sub_tracks_1 = []
+  if not args.nosub: # --nosub = No subtitles
+    if args.e:
+      if track_sub_eng_f >= 0:
+        sub_list.append(track_sub_eng_f)
+      if track_sub_eng_n >= 0:
+        sub_list.append(track_sub_eng_n)
+    if track_sub_spa_f >= 0:
+      sub_list.append(track_sub_spa_f)
+    if track_sub_spa_n >= 0:
+      sub_list.append(track_sub_spa_n)
 
   if not DUAL:
     v.transcode_audio_track(track_audio_0, sub_list, TEMP_AV_FILE_0)
