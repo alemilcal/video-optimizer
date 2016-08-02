@@ -2,20 +2,21 @@
 
 # Imports:
 
-import os, string, argparse, subprocess, distutils.spawn, sys
+import os, string, argparse, subprocess, distutils.spawn, sys, shutil
 
 # Constants:
 
-VERSION = 'v4.4.0'
+VERSION = 'v4.6.0'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
-VIDEO_QUALITY = 22
-VIDEO_QUALITY_HD = 18
+VIDEO_QUALITY = 23
+VIDEO_QUALITY_HD = 21
 SPANISH = 'Spanish'
 ENGLISH = 'English'
 TEMP_REMUX_FILE = 'temprmux.mkv'
 TEMP_AV_FILE_0 = 'tempav00.mkv'
 TEMP_AV_FILE_1 = 'tempav01.mkv'
+TEMP_BIF_DIR = 'tempbifd'
 
 if os.name == 'posix':
   FFMPEG_BIN = 'ffmpeg'
@@ -24,6 +25,7 @@ if os.name == 'posix':
   MKVPROPEDIT_BIN = 'mkvpropedit'
   NICE_BIN = 'nice'
   SED_BIN = 'sed'
+  BIFTOOL_BIN = 'biftool'
 else:
   BIN_PATH = 'C:/script/bin/'
   FFMPEG_BIN = '%sffmpeg.exe'%(BIN_PATH)
@@ -32,15 +34,17 @@ else:
   MKVPROPEDIT_BIN = '%smkvpropedit.exe'%(BIN_PATH)
   NICE_BIN = ''
   SED_BIN = '%ssed.exe'%(BIN_PATH)
+  BIFTOOL_BIN = '%sbiftool.exe'%(BIN_PATH)
 
 # Options:
 
 parser = argparse.ArgumentParser(description = 'Video transcoder/processor (%s)'%(VERSION))
 #parser.add_argument('-a', nargs = 1, help = 'audio track (1 by default)')
-parser.add_argument('-b', action = 'store_true', help = 'Debug mode')
+parser.add_argument('-b', action = 'store_true', help = 'Generate BIF files [BETA]')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
 parser.add_argument('-d', action = 'store_true', help = 'Dolby surround 3.1 audio output [BETA]')
-parser.add_argument('-f', action = 'store_true', help = 'Full HD output (high quality)')
+#parser.add_argument('-f', action = 'store_true', help = 'Full HD output (high quality)')
+parser.add_argument('-g', action = 'store_true', help = 'Debug mode')
 parser.add_argument('-k', action = 'store_true', help = 'Matroska (MKV) output')
 parser.add_argument('-m', action = 'store_true', help = 'Skip adding metadata')
 parser.add_argument('-o', nargs = 1, help = 'Output path')
@@ -51,6 +55,8 @@ parser.add_argument('-r', action = 'store_true', help = 'Rebuild original folder
 parser.add_argument('--nosub', action = 'store_true', help = 'No subtitles')
 parser.add_argument('-t', action = 'store_true', help = 'Test mode (only the first %d s of video are processed)'%(TEST_TIME))
 parser.add_argument('-v', action = 'store_true', help = 'Central speaker (voice) boost [BETA]')
+parser.add_argument('--noenc', action = 'store_true', help = 'No video encoding (passthrough) [BETA]')
+parser.add_argument('--noren', action = 'store_true', help = 'No file renaming (instead of removing brackets) [BETA]')
 parser.add_argument('-w', action = 'store_true', help = 'Overwrite existing files (skip by default)')
 parser.add_argument('-x', action = 'store_true', help = 'X265 codec (BETA)')
 parser.add_argument('-z', action = 'store_true', help = 'dry run')
@@ -163,23 +169,32 @@ class MediaFile:
         if n[0] == '.':
           n = n[1:]
         n = args.o[0] + n
-    self.output_file = n
-    if args.f:
-      self.output_file += '[HQ]'
+    self.base_filename = n
+    self.output_bif_file = self.base_filename + '.bif'
+    if args.noren:
+      self.output_file = self.base_filename
+    else:
+      self.output_file = self.base_filename.split(' [')[0]
+    #if args.f:
+    #  self.output_file += '[HQ]'
     if args.x:
       self.output_file += '[X265]'
     if args.q:
-      self.output_file += '[Q%s].mp4'%(args.q[0])
+      self.output_file += '[Q%s]'%(args.q[0])
+    if args.noren:
+      self.output_file += '[OV]'
     if args.k:
-      self.output_file += '[OV].mkv'
+      #self.output_file += '[OV].mkv'
+      self.output_file += '.mkv'
     else:
-      self.output_file += '[OV].mp4'
+      #self.output_file += '[OV].mp4'
+      self.output_file += '.mp4'
     # Movie name:
     self.movie_name = n.split(' [')[0]
 
     # Media info extraction
     self.info = MediaInfo()
-    if self.extension == 'mkv':
+    if True: #self.extension == 'mkv':
       print '> Extracting file media info...'
       # Audio tracks count
       o = subprocess.check_output('%s --Inform="General;%%AudioCount%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
@@ -194,10 +209,14 @@ class MediaFile:
         self.info.audio_codec.append(o[i])
       # Audio Languages
       o = subprocess.check_output('%s --Inform="General;%%Audio_Language_List%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
+      #print o
       o = o.rstrip()
       o = o.split(' / ')
       for i in range(0, audcnt):
+        if o[i] == '':
+          o[i] = 'Unknown'
         self.info.audio_languages.append(o[i])
+      #print self.info.audio_languages
       # Audio Channels
       o = subprocess.check_output('%s --Inform="Audio;%%Channel(s)%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
       #print '*'+o+'*'
@@ -256,18 +275,23 @@ class MediaFile:
 
   def transcode(self, input_file, aud_list, sub_list):
     print '* Transcoding media file "%s" to "%s"...'%(input_file, self.output_file)
-    options = ' --preset="Normal" --loose-anamorphic '
+    #options = ' --preset="Normal" --loose-anamorphic '
+    #options = ' --preset="High Profile" --strict-anamorphic '
+    options = ' -Z iPad '
     if args.x:
       options += ' --encoder x265 '
-    if not args.f:
-      options += ' --maxWidth 1280 '
+    #else:
+    #  options += ' --encoder x264 '
+    #if not args.f:
+    #  options += ' --maxWidth 1280 '
+    #options += ' --cfr --encopts b-adapt=2:rc-lookahead=50:direct=auto '
     if args.q:
       quantizer = int(args.q[0])
     else:
-      if args.f:
-        quantizer = VIDEO_QUALITY_HD
-      else:
-        quantizer = VIDEO_QUALITY
+      #if args.f:
+      #  quantizer = VIDEO_QUALITY_HD
+      #else:
+      quantizer = VIDEO_QUALITY
     if args.x:
       quantizer = quantizer + 1
     options += ' --quality %d '%(quantizer)
@@ -275,30 +299,33 @@ class MediaFile:
     #  audopts = '--audio 1,2'
     #else:
     #  audopts = '--audio 1'
-    if args.d or args.v:
-      audopts = '--aencoder copy'
+    if args.noenc:
+      if args.d or args.v:
+        audopts = ' -c:a copy '
+      else:
+        #audopts = ' -c:a libfaac -ac 2 '
+        audopts = ' -B 128 '
     else:
-      audopts = '--mixdown stereo --drc 2.0'
-    #c = '%s %s -i "%s" --optimize --large-file --markers %s %s --subtitle 1,2,3,4 -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, self.output_file)
-    #audtracksnumbers = ','.join(str(x + 1) for x in aud_list)
-    #audopts += ' --audio %s'%(audtracksnumbers)
-    #if self.info.sub_tracks_count() == 0:
-    #  subopts = ''
-    #else:
-    #  subopts = '--subtitle ' + ','.join(str(x + 1) for x in sub_list)
-    audopts = ''
-    if len(aud_list) > 0:
-      audopts += '--audio '
-      for n in range(0, len(aud_list)):
-        audopts += '%d,'%(n + 1)
-      audopts = audopts[:-1]
+      if args.d or args.v:
+        audopts = ' --aencoder copy '
+      else:
+        #audopts = ' --aencoder av_aac --mixdown stereo --gain 1.0 --drc 1.5 '
+        audopts = ' -B 128 --gain 1.0 --drc 1.5 '
+      if len(aud_list) > 0:
+        audopts += ' --audio '
+        for n in range(0, len(aud_list)):
+          audopts += '%d,'%(n + 1)
+        audopts = audopts[:-1]
     subopts = ''
     if len(sub_list) > 0:
-      subopts += '--subtitle '
+      subopts += ' --subtitle '
       for n in range(0, len(sub_list)):
         subopts += '%d,'%(n + 1)
       subopts = subopts[:-1]
-    c = '%s %s -i "%s" --optimize --large-file --markers %s %s %s -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, subopts, self.output_file)
+    if args.noenc:
+      c = '%s %s -i "%s" -map 0:v:0 -c:v copy -map 0:a %s -map 0:s -c:s copy "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, input_file, audopts, self.output_file)
+    else:
+      c = '%s %s -i "%s" --optimize --markers %s %s %s -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, subopts, self.output_file)
     execute_command(c)
 
   def transcode_audio_track(self, audio_track, sub_tracks, output_file):
@@ -338,17 +365,26 @@ class MediaFile:
 
   def tag(self, aud_list, sub_list, output_file):
     if not args.m:
-      movnam = self.movie_name
-      #print "KKK"+movnam+"KKK"
-      movnam = movnam.split('/')
-      movnam = movnam[-1]
-      #print movnam
-      movnam = movnam.split('\\')
-      movnam = movnam[-1]
-      #print "KKK"+movnam+"KKK"
+      movnamyea = self.movie_name
+      movnamyea = movnamyea.split('/')
+      movnamyea = movnamyea[-1]
+      movnamyea = movnamyea.split('\\')
+      movnamyea = movnamyea[-1]
+      movnam = movnamyea
+      #movnamyea = movnamyea.split('(')
+      #movnam = movnamyea[0]
+      #if len(movnamyea) > 1:
+      #  movnam = movnam.rstrip()
+      #  movyea = movnamyea[1]
+      #  movyea = movyea[:-1]
+      #else:
+      #  movyea = ''
       # Title
       c = '%s "%s" --edit info --set title="%s"'%(MKVPROPEDIT_BIN, output_file, movnam)
       execute_command(c)
+      #if not movyea == '':
+      #  c = '%s "%s" --edit info --set date="%s"'%(MKVPROPEDIT_BIN, output_file, movyea)
+      #execute_command(c)
       # Audio tracks
       #print aud_list
       for n in range(0, len(aud_list)):
@@ -430,15 +466,87 @@ def clean_temp_files():
     pass
   return
 
-def process_file(f):
+def generate_bif_file(f):
 
-  if args.b and not args.z:
+  v = MediaFile(f)
+
+  if v.extension in VXT:
+    if not args.g and not args.w and os.path.isfile(v.output_file):
+      print '* Destination file already exists (skipping)'
+      return
+
+  if not args.z:
+    try:
+      shutil.rmtree(TEMP_BIF_DIR)
+    except:
+      pass
+
+  print '> Generating thumbnails...'
+
+  if not args.z:
+    os.mkdir(TEMP_BIF_DIR)
+  #c = '%s -i "%s" -f image2 -r 1/10 -s 320x180 -ss 10.5 %s/%%08d.jpg'%(FFMPEG_BIN, v.input_file, TEMP_BIF_DIR)
+  #c = '%s -i "%s" -f image2 -r 1/10 -s 320x180 -ss 0.5 %s/%%08d.jpg'%(FFMPEG_BIN, v.input_file, TEMP_BIF_DIR)
+  c = '%s -i "%s" -f image2 -r 1/10 -s 320x180 %s/%%08d.jpg'%(FFMPEG_BIN, v.input_file, TEMP_BIF_DIR)
+  execute_command(c)
+
+  lis = os.listdir(TEMP_BIF_DIR)
+  lis = sorted(lis)
+  tot = len(lis)
+  print '* Thumbnails generated: %d'%(tot)
+
+  print '* Removing 1st thumbnail... ',
+  if not args.z:
+    try:
+      os.remove('%s/00000001.jpg'%(TEMP_BIF_DIR))
+      print 'OK'
+    except:
+      print 'ERROR'
+  print '* Removing 2nd thumbnail... ',
+  if not args.z:
+    try:
+      os.remove('%s/00000002.jpg'%(TEMP_BIF_DIR))
+      print 'OK'
+    except:
+      print 'ERROR'
+  k = 1
+  while k <= tot - 2:
+    tna = '%08d.jpg'%(k + 2)
+    tnb = '%08d.jpg'%(k)
+    print '* Renaming thumbnail %s to %s...'%(tna, tnb),
+    if not args.z:
+      try:
+        os.rename('%s/%s'%(TEMP_BIF_DIR, tna), '%s/%s'%(TEMP_BIF_DIR, tnb))
+        print 'OK'
+      except:
+        print 'ERROR'
+    k += 1
+
+  print '* Compiling BIF file...'
+  c = '%s -t 10000 %s'%(BIFTOOL_BIN, TEMP_BIF_DIR)
+  execute_command(c)
+  print '* Renaming BIF file...',
+  if not args.z:
+    try:
+      os.rename('%s.bif'%(TEMP_BIF_DIR), '%s.bif'%(v.base_filename))
+      print 'OK'
+    except:
+      print 'ERROR'
+  if not args.z and not args.g:
+    try:
+      shutil.rmtree(TEMP_BIF_DIR)
+    except:
+      pass
+
+def transcode_video_file(f):
+
+  if args.g and not args.z:
     clean_temp_files()
 
   v = MediaFile(f)
 
   if v.extension in VXT:
-    if not args.b and not args.w and os.path.isfile(v.output_file):
+    if not args.g and not args.w and os.path.isfile(v.output_file):
       print '* Destination file already exists (skipping)'
       return
 
@@ -504,7 +612,7 @@ def process_file(f):
   if args.k:
     v.tag(aud_list, sub_list, v.output_file)
 
-  if not args.b and not args.z:
+  if not args.g and not args.z:
     clean_temp_files()
 
 def process_directory(dir):
@@ -523,23 +631,37 @@ def process_directory(dir):
                 os.makedirs(nueva_ruta)
       process_directory(rut)
     else:
-      process_file(rut)
+      if args.b:
+        generate_bif_file(rut)
+      else:
+        transcode_video_file(rut)
 
-def verify_software(b):
+def process_file(f):
+  if args.b:
+    generate_bif_file(f)
+  else:
+    transcode_video_file(f)
+
+def verify_software(b, critical):
   if not b == '':
-    print "Checking for %s..."%(b),
+    print 'Checking for %s...'%(b),
     if distutils.spawn.find_executable(b) is None:
-      sys.exit("MISSING!")
-    print "OK"
+      if critical:
+        sys.exit('MISSING!')
+      else:
+        print 'MISSING! (WARNING)'
+    else:
+      print 'OK'
 
 # Main routine:
 
-verify_software(FFMPEG_BIN)
-verify_software(HANDBRAKECLI_BIN)
-verify_software(MEDIAINFO_BIN)
-verify_software(MKVPROPEDIT_BIN)
-verify_software(NICE_BIN)
-#verify_software(SED_BIN)
+verify_software(FFMPEG_BIN, True)
+verify_software(HANDBRAKECLI_BIN, True)
+verify_software(MEDIAINFO_BIN, True)
+verify_software(MKVPROPEDIT_BIN, True)
+verify_software(NICE_BIN, True)
+#verify_software(SED_BIN, True)
+verify_software(BIFTOOL_BIN, False)
 
 if args.input:
   for f in args.input:
