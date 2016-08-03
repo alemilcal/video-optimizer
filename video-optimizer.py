@@ -6,7 +6,7 @@ import os, string, argparse, subprocess, distutils.spawn, sys, shutil
 
 # Constants:
 
-VERSION = 'v4.6.0'
+VERSION = 'v4.7.0'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 23
@@ -57,6 +57,7 @@ parser.add_argument('-t', action = 'store_true', help = 'Test mode (only the fir
 parser.add_argument('-v', action = 'store_true', help = 'Central speaker (voice) boost [BETA]')
 parser.add_argument('--noenc', action = 'store_true', help = 'No video encoding (passthrough) [BETA]')
 parser.add_argument('--noren', action = 'store_true', help = 'No file renaming (instead of removing brackets) [BETA]')
+parser.add_argument('--tagonly', action = 'store_true', help = 'Tag file name only (no transcoding) [BETA]')
 parser.add_argument('-w', action = 'store_true', help = 'Overwrite existing files (skip by default)')
 parser.add_argument('-x', action = 'store_true', help = 'X265 codec (BETA)')
 parser.add_argument('-z', action = 'store_true', help = 'dry run')
@@ -538,6 +539,11 @@ def generate_bif_file(f):
     except:
       pass
 
+def tagonly_video_file(f):
+  v = MediaFile(f)
+  c = '%s "%s" --edit info --set title="%s"'%(MKVPROPEDIT_BIN, v.input_file, v.movie_name)
+  execute_command(c)
+
 def transcode_video_file(f):
 
   if args.g and not args.z:
@@ -634,13 +640,19 @@ def process_directory(dir):
       if args.b:
         generate_bif_file(rut)
       else:
-        transcode_video_file(rut)
+        if args.tagonly:
+          tagonly_video_file(rut)
+        else:
+          transcode_video_file(rut)
 
 def process_file(f):
   if args.b:
     generate_bif_file(f)
   else:
-    transcode_video_file(f)
+    if args.tagonly:
+      tagonly_video_file(f)
+    else:
+      transcode_video_file(f)
 
 def verify_software(b, critical):
   if not b == '':
