@@ -6,7 +6,7 @@ import os, string, argparse, subprocess, distutils.spawn, sys, shutil
 
 # Constants:
 
-VERSION = 'v4.7.0'
+VERSION = 'v4.7.1'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 23
@@ -191,7 +191,10 @@ class MediaFile:
       #self.output_file += '[OV].mp4'
       self.output_file += '.mp4'
     # Movie name:
-    self.movie_name = n.split(' [')[0]
+    tmp_movie_name = n.split(' [')[0]
+    tmp_movie_name = tmp_movie_name.split('/')
+    #print tmp_movie_name
+    self.movie_name = tmp_movie_name[-1]
 
     # Media info extraction
     self.info = MediaInfo()
