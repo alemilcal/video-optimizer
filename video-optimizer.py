@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf8 -*-
 
 # Imports:
 
@@ -6,8 +7,9 @@ import os, string, argparse, subprocess, distutils.spawn, sys, shutil
 
 # Constants:
 
-VERSION = 'v4.7.1'
+VERSION = 'v4.8.0'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
+PRESET = 'High Profile'
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 23
 VIDEO_QUALITY_HD = 21
@@ -43,7 +45,7 @@ parser = argparse.ArgumentParser(description = 'Video transcoder/processor (%s)'
 parser.add_argument('-b', action = 'store_true', help = 'Generate BIF files [BETA]')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
 parser.add_argument('-d', action = 'store_true', help = 'Dolby surround 3.1 audio output [BETA]')
-#parser.add_argument('-f', action = 'store_true', help = 'Full HD output (high quality)')
+parser.add_argument('-f', action = 'store_true', help = 'Full HD output (high quality)')
 parser.add_argument('-g', action = 'store_true', help = 'Debug mode')
 parser.add_argument('-k', action = 'store_true', help = 'Matroska (MKV) output')
 parser.add_argument('-m', action = 'store_true', help = 'Skip adding metadata')
@@ -57,6 +59,7 @@ parser.add_argument('-t', action = 'store_true', help = 'Test mode (only the fir
 parser.add_argument('-v', action = 'store_true', help = 'Central speaker (voice) boost [BETA]')
 parser.add_argument('--noenc', action = 'store_true', help = 'No video encoding (passthrough) [BETA]')
 parser.add_argument('--noren', action = 'store_true', help = 'No file renaming (instead of removing brackets) [BETA]')
+parser.add_argument('--subext', action = 'store_true', help = 'Extract subtitle tracks to external files also [BETA]')
 parser.add_argument('--tagonly', action = 'store_true', help = 'Tag file name only (no transcoding) [BETA]')
 parser.add_argument('-w', action = 'store_true', help = 'Overwrite existing files (skip by default)')
 parser.add_argument('-x', action = 'store_true', help = 'X265 codec (BETA)')
@@ -176,8 +179,24 @@ class MediaFile:
       self.output_file = self.base_filename
     else:
       self.output_file = self.base_filename.split(' [')[0]
-    #if args.f:
-    #  self.output_file += '[HQ]'
+      self.output_file = self.output_file.replace('á', 'a')
+      self.output_file = self.output_file.replace('é', 'e')
+      self.output_file = self.output_file.replace('í', 'i')
+      self.output_file = self.output_file.replace('ó', 'o')
+      self.output_file = self.output_file.replace('ú', 'u')
+      self.output_file = self.output_file.replace('ü', 'u')
+      self.output_file = self.output_file.replace('ñ', 'n')
+      self.output_file = self.output_file.replace('ç', 'c')
+      self.output_file = self.output_file.replace('Á', 'A')
+      self.output_file = self.output_file.replace('É', 'E')
+      self.output_file = self.output_file.replace('Í', 'I')
+      self.output_file = self.output_file.replace('Ó', 'O')
+      self.output_file = self.output_file.replace('Ú', 'U')
+      self.output_file = self.output_file.replace('Ü', 'U')
+      self.output_file = self.output_file.replace('Ñ', 'N')
+      self.output_file = self.output_file.replace('Ç', 'C')
+    if args.f:
+      self.output_file += '[HQ]'
     if args.x:
       self.output_file += '[X265]'
     if args.q:
@@ -281,21 +300,24 @@ class MediaFile:
     print '* Transcoding media file "%s" to "%s"...'%(input_file, self.output_file)
     #options = ' --preset="Normal" --loose-anamorphic '
     #options = ' --preset="High Profile" --strict-anamorphic '
-    options = ' -Z iPad '
+    options = ' -Z "%s"'%(PRESET)
+    #options = '--encoder x264 --audio-fallback ffac3 -f mp4 --modulus 2 -m --x264-preset fast --h264-profile baseline --h264-level 3.0'
     if args.x:
       options += ' --encoder x265 '
     #else:
     #  options += ' --encoder x264 '
-    #if not args.f:
-    #  options += ' --maxWidth 1280 '
+    if args.f:
+      options += ' --maxWidth 1920 '
+    else:
+      options += ' --maxWidth 1280 '
     #options += ' --cfr --encopts b-adapt=2:rc-lookahead=50:direct=auto '
     if args.q:
       quantizer = int(args.q[0])
     else:
-      #if args.f:
-      #  quantizer = VIDEO_QUALITY_HD
-      #else:
-      quantizer = VIDEO_QUALITY
+      if args.f:
+        quantizer = VIDEO_QUALITY_HD
+      else:
+        quantizer = VIDEO_QUALITY
     if args.x:
       quantizer = quantizer + 1
     options += ' --quality %d '%(quantizer)
@@ -446,6 +468,15 @@ class MediaFile:
       extra_map += ' -map 1:s '
     c = '%s %s %s -threads 4 -y -c:v copy -c:a copy -c:s copy -map 0:v:0 -map 1:a:0 %s -f matroska -map_metadata -1 "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, track_files, extra_map, output_file)
     execute_command(c)
+    # Subtitle extraction to external files: ******
+    if args.subext:
+      print '* Extracting subtitles to external files...'
+      print self.info.sub_languages
+      for s in sub_list:
+        output_sub_file = '%s.%s.srt'%(self.base_filename, language_code(self.info.sub_languages[s]))
+        print 'Extracting subtitle track "%s" to file "%s"'%(s, output_sub_file)
+        c = '%s -y -i "%s" -vn -an -c:s srt -map 0:s:%d "%s"'%(FFMPEG_BIN, self.input_file, s, output_sub_file)
+        execute_command(c)
     # Pre-tagging if MP4 output:
     if not args.k:
       self.tag(aud_list, sub_list, output_file)
