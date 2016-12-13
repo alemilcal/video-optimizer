@@ -3,11 +3,22 @@
 
 # Imports:
 
-import os, string, argparse, subprocess, distutils.spawn, sys, shutil
+import os, string, argparse, subprocess, distutils.spawn, sys, shutil, random
+
+def generate_random_filename(prefix, suffix):
+  b = True
+  while b:
+    s = '%s%08d%s'%(prefix, random.randint(0,99999999), suffix)
+    #print '****************************'
+    #print s
+    #print '****************************'
+    #raw_input("Press Enter to continue...")
+    b = os.path.exists(s)
+  return s
 
 # Constants:
 
-VERSION = 'v4.8.0'
+VERSION = 'v4.8.1'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 PRESET = 'High Profile'
 TEST_TIME = 300 # 300 seg = 5 min
@@ -15,10 +26,14 @@ VIDEO_QUALITY = 23
 VIDEO_QUALITY_HD = 21
 SPANISH = 'Spanish'
 ENGLISH = 'English'
-TEMP_REMUX_FILE = 'temprmux.mkv'
-TEMP_AV_FILE_0 = 'tempav00.mkv'
-TEMP_AV_FILE_1 = 'tempav01.mkv'
-TEMP_BIF_DIR = 'tempbifd'
+#TEMP_REMUX_FILE = 'temprmux.mkv'
+#TEMP_AV_FILE_0 = 'tempav00.mkv'
+#TEMP_AV_FILE_1 = 'tempav01.mkv'
+#TEMP_BIF_DIR = 'tempbifd'
+TEMP_REMUX_FILE = generate_random_filename('temp_rmux_', '.mkv')
+TEMP_AV_FILE_0 = generate_random_filename('temp_avf1_', '.mkv')
+TEMP_AV_FILE_1 = generate_random_filename('temp_avf2_', '.mkv')
+TEMP_BIF_DIR = generate_random_filename('temp_bifd_', '')
 
 if os.name == 'posix':
   FFMPEG_BIN = 'ffmpeg'
