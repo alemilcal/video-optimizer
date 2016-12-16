@@ -18,9 +18,8 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.8.1'
+VERSION = 'v4.8.2'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
-PRESET = 'High Profile'
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 23
 VIDEO_QUALITY_HD = 21
@@ -315,12 +314,14 @@ class MediaFile:
     print '* Transcoding media file "%s" to "%s"...'%(input_file, self.output_file)
     #options = ' --preset="Normal" --loose-anamorphic '
     #options = ' --preset="High Profile" --strict-anamorphic '
-    options = ' -Z "%s"'%(PRESET)
-    #options = '--encoder x264 --audio-fallback ffac3 -f mp4 --modulus 2 -m --x264-preset fast --h264-profile baseline --h264-level 3.0'
+    #options = ' %s '%(PRESET)
+    #PRESET = '-e x264 -E ffaac,copy:ac3 -6 dpl2,none -R Auto,Auto -D 0.0,0.0 --audio-copy-mask aac,ac3,dtshd,dts,mp3 
+    #  --audio-fallback ffac3 --decomb --loose-anamorphic --modulus 2 -m --x264-preset medium --h264-profile high --h264-level 4.1'
+    options = ' --audio-fallback ffac3 --strict-anamorphic --modulus 2 --x264-preset fast --h264-profile high --h264-level 4.1'
     if args.x:
       options += ' --encoder x265 '
-    #else:
-    #  options += ' --encoder x264 '
+    else:
+      options += ' --encoder x264 '
     if args.f:
       options += ' --maxWidth 1920 '
     else:
