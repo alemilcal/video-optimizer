@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.9.0'
+VERSION = 'v4.10.0'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 23
@@ -49,7 +49,7 @@ else:
 # Options:
 
 parser = argparse.ArgumentParser(description = 'Video transcoder/processor (%s)'%(VERSION))
-#parser.add_argument('-a', nargs = 1, help = 'audio track (1 by default)')
+parser.add_argument('-a', nargs = 1, help = 'audio track (language chosen by default)')
 parser.add_argument('-b', action = 'store_true', help = 'Generate BIF files [BETA]')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
 parser.add_argument('-d', action = 'store_true', help = 'Dolby surround 3.1 audio output [BETA]')
@@ -202,7 +202,10 @@ class MediaFile:
       self.output_file = self.output_file.replace('Ú', 'U')
       self.output_file = self.output_file.replace('Ü', 'U')
       self.output_file = self.output_file.replace('Ñ', 'N')
-      self.output_file = self.output_file.replace('Ç', 'C')
+      self.output_file = self.output_file.replace('¿', '')
+      self.output_file = self.output_file.replace('?', '')
+      self.output_file = self.output_file.replace('¡', '')
+      self.output_file = self.output_file.replace('!', '')
     if args.f:
       self.output_file += '[HQ]'
     if args.x:
@@ -307,7 +310,7 @@ class MediaFile:
   def transcode(self, input_file, aud_list, sub_list):
     global REMUX_MODE
     print '* Transcoding media file "%s" to "%s"...'%(input_file, self.output_file)
-    options = ' --audio-fallback ffac3 --strict-anamorphic --modulus 2 --x264-preset fast --h264-profile high --h264-level 4.1'
+    options = ' --audio-fallback ffac3 --loose-anamorphic --modulus 2 --x264-preset fast --h264-profile high --h264-level 4.1'
     if args.x:
       options += ' --encoder x265 '
     else:
@@ -335,7 +338,7 @@ class MediaFile:
       if args.d or args.v:
         audopts = ' --aencoder copy '
       else:
-        audopts = ' -B 128 --gain %s --drc 1.5 '%(GAIN)
+        audopts = ' --mixdown stereo -B 128 --gain %s --drc 1.5 '%(GAIN)
       if len(aud_list) > 0:
         audopts += ' --audio '
         for n in range(0, len(aud_list)):
@@ -467,7 +470,8 @@ class MediaFile:
           execute_command(c)
     else:
       print '* Copying to "%s"...'%(output_file)
-      shutil.copyfile(original_file, output_file)
+      if not args.z:
+        shutil.copyfile(original_file, output_file)
     # Pre-tagging if MP4 output:
     if not args.k:
       self.tag(aud_list, sub_list, output_file)
@@ -497,7 +501,7 @@ def generate_bif_file(f):
   v = MediaFile(f)
 
   if v.extension in VXT:
-    if not args.g and not args.w and os.path.isfile(v.output_file):
+    if not args.g and not args.w and os.path.isfile(v.output_bif_file):
       print '* Destination file already exists (skipping)'
       return
 
@@ -554,7 +558,8 @@ def generate_bif_file(f):
   print '* Renaming BIF file...',
   if not args.z:
     try:
-      os.rename('%s.bif'%(TEMP_BIF_DIR), '%s.bif'%(v.base_filename))
+      #os.rename('%s.bif'%(TEMP_BIF_DIR), '%s.bif'%(v.base_filename))
+      os.rename('%s.bif'%(TEMP_BIF_DIR), '%s'%(v.output_bif_file))
       print 'OK'
     except:
       print 'ERROR'
@@ -611,6 +616,8 @@ def transcode_video_file(f):
       if track_audio_spa >= 0:
         DUAL = True
         track_audio_1 = track_audio_spa
+  if args.a: # Audio track selected by user
+    track_audio_0 = int(args.a[0])
 
   aud_list = [track_audio_0]
   if track_audio_1 >= 0:
