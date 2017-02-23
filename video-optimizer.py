@@ -3,7 +3,7 @@
 
 # Imports:
 
-import os, string, argparse, subprocess, distutils.spawn, sys, shutil, random
+import os, string, argparse, subprocess, distutils.spawn, sys, shutil, random, Image
 
 def generate_random_filename(prefix, suffix):
   b = True
@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.11.0'
+VERSION = 'v4.12.0'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 23
@@ -27,6 +27,7 @@ TEMP_AV_FILE_0 = generate_random_filename('temp_avf1_', '.mkv')
 TEMP_AV_FILE_1 = generate_random_filename('temp_avf2_', '.mkv')
 TEMP_BIF_DIR = generate_random_filename('temp_bifd_', '')
 REMUX_MODE = False
+THUMB_POOL_SIZE = 23
 
 if os.name == 'posix':
   FFMPEG_BIN = 'ffmpeg'
@@ -497,6 +498,52 @@ def clean_temp_files():
     pass
   return
 
+#def image_variance(im)
+#  h = []
+#  for k in range(0, 256):
+#    h.append(0)
+#  for x in range(0, 320):
+#    for y in range(0, 180):
+#      r, g, b = im.getpixel((x, y))
+#      cmin = min(r, g, b)
+#      cmax = max(r, g, b)
+#      l = (cmin + cmax)/2
+#      h[l] += 1
+#  m = float(sum(h))/256.0
+#  v = float(0.0)
+#  for k in range(0, 256):
+#    v += (float(h[k]) - m)*(float(h[k]) - m)
+#  v /= 256.0
+#  return v
+
+def thumbnail_quality(f):
+  im = Image.open(f)
+  lum1 = 0
+  lum2 = 0
+  lum3 = 0
+  for x in range(0, 104):
+    for y in range(0, 180):
+      r, g, b = im.getpixel((x, y))
+      cmin = min(r, g, b)
+      cmax = max(r, g, b)
+      l = (cmin + cmax) / 2
+      lum1 += l
+  for x in range(105, 216):
+    for y in range(0, 180):
+      cmin = min(r, g, b)
+      cmax = max(r, g, b)
+      l = (cmin + cmax) / 2
+      lum2 += l
+  for x in range(216, 320):
+    for y in range(0, 180):
+      cmin = min(r, g, b)
+      cmax = max(r, g, b)
+      l = (cmin + cmax) / 2
+      lum3 += l
+  q = abs(2 * lum2 - (lum1 + lum3))
+  im.close()
+  return q
+
 def generate_bif_file(f):
 
   v = MediaFile(f)
@@ -555,12 +602,23 @@ def generate_bif_file(f):
 
   print '* Extracting thumbnail...'
   total_thumbs = len(os.listdir(TEMP_BIF_DIR))
-  thumb_chosen = int(total_thumbs/10)
+  thumb = []
+  for k in range(0, THUMB_POOL_SIZE):
+    thumb.append(int(total_thumbs / 10) + k)
+  thumbfile = []
+  thumbquality = []
   print '- Total thumbnails = %d'%(total_thumbs)
-  print '- Thumbnail chosen = %d'%(thumb_chosen)
+  for t in thumb:
+    f = '%s/%08d.jpg'%(TEMP_BIF_DIR, t)
+    q = thumbnail_quality(f)
+    thumbfile.append(f)
+    thumbquality.append(q)
+    print '- Thumbnail candidate: %s (quality = %g)'%(f, q)
+  maxqfile = thumbfile[thumbquality.index(max(thumbquality))]
+  print '- Thumbnail chosen = %s'%(maxqfile)
   if not args.z:
     try:
-      shutil.copyfile('%s/%08d.jpg'%(TEMP_BIF_DIR, thumb_chosen), '%s'%(v.output_jpg_file))
+      shutil.copyfile(maxqfile, '%s'%(v.output_jpg_file))
       print 'OK'
     except:
       print 'ERROR'
