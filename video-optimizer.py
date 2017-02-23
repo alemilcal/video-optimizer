@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.10.0'
+VERSION = 'v4.11.0'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 23
@@ -183,6 +183,7 @@ class MediaFile:
         n = args.o[0] + n
     self.base_filename = n
     self.output_bif_file = self.base_filename + '.bif'
+    self.output_jpg_file = self.base_filename + '.jpg'
     if args.noren:
       self.output_file = self.base_filename
     else:
@@ -517,7 +518,7 @@ def generate_bif_file(f):
     os.mkdir(TEMP_BIF_DIR)
   #c = '%s -i "%s" -f image2 -r 1/10 -s 320x180 -ss 10.5 %s/%%08d.jpg'%(FFMPEG_BIN, v.input_file, TEMP_BIF_DIR)
   #c = '%s -i "%s" -f image2 -r 1/10 -s 320x180 -ss 0.5 %s/%%08d.jpg'%(FFMPEG_BIN, v.input_file, TEMP_BIF_DIR)
-  c = '%s -i "%s" -f image2 -r 1/10 -s 320x180 %s/%%08d.jpg'%(FFMPEG_BIN, v.input_file, TEMP_BIF_DIR)
+  c = '%s %s -i "%s" -f image2 -r 1/10 -s 320x180 %s/%%08d.jpg'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, v.input_file, TEMP_BIF_DIR)
   execute_command(c)
 
   lis = os.listdir(TEMP_BIF_DIR)
@@ -552,9 +553,22 @@ def generate_bif_file(f):
         print 'ERROR'
     k += 1
 
+  print '* Extracting thumbnail...'
+  total_thumbs = len(os.listdir(TEMP_BIF_DIR))
+  thumb_chosen = int(total_thumbs/10)
+  print '- Total thumbnails = %d'%(total_thumbs)
+  print '- Thumbnail chosen = %d'%(thumb_chosen)
+  if not args.z:
+    try:
+      shutil.copyfile('%s/%08d.jpg'%(TEMP_BIF_DIR, thumb_chosen), '%s'%(v.output_jpg_file))
+      print 'OK'
+    except:
+      print 'ERROR'
+
   print '* Compiling BIF file...'
   c = '%s -t 10000 %s'%(BIFTOOL_BIN, TEMP_BIF_DIR)
   execute_command(c)
+
   print '* Renaming BIF file...',
   if not args.z:
     try:
