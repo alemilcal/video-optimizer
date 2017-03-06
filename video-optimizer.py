@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.13.1'
+VERSION = 'v4.13.2'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 23
@@ -708,6 +708,9 @@ def transcode_video_file(f):
       sub_list.append(track_sub_spa_f)
     if track_sub_spa_n >= 0:
       sub_list.append(track_sub_spa_n)
+
+  aud_list.sort()
+  sub_list.sort()
 
   audio_track_files = []
   #if REMUX_MODE:
