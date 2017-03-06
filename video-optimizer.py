@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.13.0'
+VERSION = 'v4.13.1'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 23
@@ -624,6 +624,7 @@ def generate_bif_file(f):
   print '- Thumbnail chosen = %s'%(maxqfile)
   if not args.z:
     try:
+      os.nice(19)
       shutil.copyfile(maxqfile, '%s'%(v.output_jpg_file))
       print 'OK'
     except:
