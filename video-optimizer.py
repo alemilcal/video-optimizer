@@ -14,19 +14,19 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.12.1'
+VERSION = 'v4.13.0'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 23
 VIDEO_QUALITY_HD = 21
-GAIN = '2.0'
+GAIN = '3.0'
+DRC = '2.0'
 SPANISH = 'Spanish'
 ENGLISH = 'English'
 TEMP_REMUX_FILE = generate_random_filename('temp_rmux_', '.mkv')
 TEMP_AV_FILE_0 = generate_random_filename('temp_avf1_', '.mkv')
 TEMP_AV_FILE_1 = generate_random_filename('temp_avf2_', '.mkv')
 TEMP_BIF_DIR = generate_random_filename('temp_bifd_', '')
-REMUX_MODE = False
 THUMB_POOL_SIZE = 3
 
 if os.name == 'posix':
@@ -53,7 +53,6 @@ parser = argparse.ArgumentParser(description = 'Video transcoder/processor (%s)'
 parser.add_argument('-a', nargs = 1, help = 'audio track (language chosen by default)')
 parser.add_argument('-b', action = 'store_true', help = 'Generate BIF files [BETA]')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
-parser.add_argument('-d', action = 'store_true', help = 'Dolby surround 3.1 audio output [BETA]')
 parser.add_argument('-f', action = 'store_true', help = 'Full HD output (high quality)')
 parser.add_argument('-g', action = 'store_true', help = 'Debug mode')
 parser.add_argument('-k', action = 'store_true', help = 'Matroska (MKV) output')
@@ -65,13 +64,12 @@ parser.add_argument('-r', action = 'store_true', help = 'Rebuild original folder
 #parser.add_argument('-s', nargs = 1, help = 'Subtitle track (spanish forced searched by default / 0 disables subs)')
 parser.add_argument('--nosub', action = 'store_true', help = 'No subtitles')
 parser.add_argument('-t', action = 'store_true', help = 'Test mode (only the first %d s of video are processed)'%(TEST_TIME))
-parser.add_argument('-v', action = 'store_true', help = 'Central speaker (voice) boost [BETA]')
 parser.add_argument('--noenc', action = 'store_true', help = 'No video encoding (passthrough) [BETA]')
 parser.add_argument('--noren', action = 'store_true', help = 'No file renaming (instead of removing brackets) [BETA]')
 parser.add_argument('--subext', action = 'store_true', help = 'Extract subtitle tracks to external files also [BETA]')
 parser.add_argument('--tagonly', action = 'store_true', help = 'Tag file name only (no transcoding) [BETA]')
 parser.add_argument('-w', action = 'store_true', help = 'Overwrite existing files (skip by default)')
-parser.add_argument('-x', action = 'store_true', help = 'X265 codec (BETA)')
+parser.add_argument('-x', action = 'store_true', help = 'X265 codec [BETA]')
 parser.add_argument('-z', action = 'store_true', help = 'dry run')
 parser.add_argument('input', nargs='*', help = 'input file(s) (if missing process all video files)')
 args = parser.parse_args()
@@ -131,7 +129,8 @@ class MediaInfo:
     for i in range(0, self.audio_tracks_count()):
       if not args.p:
         if (not self.audio_descriptions[i]) and self.audio_languages[i] == l:
-          if (args.d and self.audio_channels[i] == 6) or ((not args.d) and self.audio_channels[i] == 2):
+          #if (args.d and self.audio_channels[i] == 6) or ((not args.d) and self.audio_channels[i] == 2):
+          if self.audio_channels[i] == 2:
             r = i
             break
       else: # Prioritize default audio tracks
@@ -297,7 +296,7 @@ class MediaFile:
         o = o.rstrip()
         o = o.split(' / ')
         self.info.sub_languages = o
-        # Subtitle forced
+        # Subtitle forced (by "Forced" field)
         o = subprocess.check_output('%s --Inform="Text;%%Forced%%/" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
         o = o.rstrip()
         o = o.split('/')
@@ -307,10 +306,16 @@ class MediaFile:
             self.info.sub_forced.append(True)
           else:
             self.info.sub_forced.append(False)
+        # Subtitle forced (by "Title" field)
+        o = subprocess.check_output('%s --Inform="Text;%%Title%%/" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
+        o = o.rstrip()
+        o = o.split('/')
+        for i in range(0, len(o) - 1):
+          if ('forz' in o[i].lower()) or ('forc' in o[i].lower()):
+            self.info.sub_forced[i] = True
       self.info.print_info()
 
   def transcode(self, input_file, aud_list, sub_list):
-    global REMUX_MODE
     print '* Transcoding media file "%s" to "%s"...'%(input_file, self.output_file)
     options = ' --audio-fallback ffac3 --loose-anamorphic --modulus 2 --x264-preset fast --h264-profile high --h264-level 4.1'
     if args.x:
@@ -332,22 +337,22 @@ class MediaFile:
       quantizer = quantizer + 1
     options += ' --quality %d '%(quantizer)
     if args.noenc:
-      if args.d or args.v:
-        audopts = ' -c:a copy '
-      else:
-        audopts = ' -B 128 '
+      #if args.d or args.v:
+      #  audopts = ' -c:a copy '
+      #else:
+      audopts = ' -B 128 '
     else:
-      if args.d or args.v:
-        audopts = ' --aencoder copy '
-      else:
-        audopts = ' --mixdown stereo -B 128 --gain %s --drc 1.5 '%(GAIN)
+      #if args.d or args.v:
+      #  audopts = ' --aencoder copy '
+      #else:
+      audopts = ' --mixdown stereo -B 128 --gain %s --drc %s '%(GAIN, DRC)
       if len(aud_list) > 0:
         audopts += ' --audio '
         for n in range(0, len(aud_list)):
-          if REMUX_MODE:
-            audopts += '%d,'%(n + 1)
-          else:
-            audopts += '%d,'%(aud_list[n] + 1)
+          #if REMUX_MODE:
+          #  audopts += '%d,'%(n + 1)
+          #else:
+          audopts += '%d,'%(aud_list[n] + 1)
         audopts = audopts[:-1]
     subopts = ''
     if len(sub_list) > 0:
@@ -376,17 +381,17 @@ class MediaFile:
           codec = 'copy'
           panopts = ''
       else: # Surround source
-        if args.d:
-          codec = 'ac3'
-          panopts = '-af "pan=3.1|c0<0.5*c0+0.5*c3|c1<c1|c2<0.5*c2+0.5*c4|c3<c5"'
-        else:
-          if args.v:
-            #codec = 'libfaac'
-            codec = 'aac -strict experimental'
-            panopts = '-af "pan=stereo|c0<0.5*c0+0.5*c3+c1+0.5*c5|c1<0.5*c2+0.5*c4+c1+0.5*c5"'
-          else:
-            codec = 'copy'
-            panopts = ''
+        #if args.d:
+        #  codec = 'ac3'
+        #  panopts = '-af "pan=3.1|c0<0.5*c0+0.5*c3|c1<c1|c2<0.5*c2+0.5*c4|c3<c5"'
+        #else:
+        #if args.v:
+        #  #codec = 'libfaac'
+        #  codec = 'aac -strict experimental'
+        #  panopts = '-af "pan=stereo|c0<0.5*c0+0.5*c3+c1+0.5*c5|c1<0.5*c2+0.5*c4+c1+0.5*c5"'
+        #else:
+        codec = 'copy'
+        panopts = ''
     if len(sub_tracks) > 0:
       subopts = ' -c:s copy '
       for i in range(0, len(sub_tracks)):
@@ -444,36 +449,36 @@ class MediaFile:
         execute_command(c)
 
   def remux_tracks(self, original_file, av_files, aud_list, sub_list, output_file):
-    global REMUX_MODE
-    if REMUX_MODE:
-      print '* Remuxing to "%s"...'%(output_file)
-      if self.extension == 'avi':
-        track_files = ' -fflags +genpts '
-      else:
-        track_files = ''
-      track_files += ' -i "%s" '%(original_file)
-      for f in av_files:
-        track_files += ' -i "%s" '%(f)
-      extra_map = ''
-      if len(av_files) > 1:
-        extra_map += ' -map 2:a:0 '
-      if not sub_list == []:
-        extra_map += ' -map 1:s '
-      c = '%s %s %s -threads 4 -y -c:v copy -c:a copy -c:s copy -map 0:v:0 -map 1:a:0 %s -f matroska -map_metadata -1 "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, track_files, extra_map, output_file)
-      execute_command(c)
-      # Subtitle extraction to external files: ******
-      if args.subext:
-        print '* Extracting subtitles to external files...'
-        print self.info.sub_languages
-        for s in sub_list:
-          output_sub_file = '%s.%s.srt'%(self.base_filename, language_code(self.info.sub_languages[s]))
-          print 'Extracting subtitle track "%s" to file "%s"'%(s, output_sub_file)
-          c = '%s -y -i "%s" -vn -an -c:s srt -map 0:s:%d "%s"'%(FFMPEG_BIN, self.input_file, s, output_sub_file)
-          execute_command(c)
-    else:
-      print '* Copying to "%s"...'%(output_file)
-      if not args.z:
-        shutil.copyfile(original_file, output_file)
+    #global REMUX_MODE
+    #if REMUX_MODE:
+    #  print '* Remuxing to "%s"...'%(output_file)
+    #  if self.extension == 'avi':
+    #    track_files = ' -fflags +genpts '
+    #  else:
+    #    track_files = ''
+    #  track_files += ' -i "%s" '%(original_file)
+    #  for f in av_files:
+    #    track_files += ' -i "%s" '%(f)
+    #  extra_map = ''
+    #  if len(av_files) > 1:
+    #    extra_map += ' -map 2:a:0 '
+    #  if not sub_list == []:
+    #    extra_map += ' -map 1:s '
+    #  c = '%s %s %s -threads 4 -y -c:v copy -c:a copy -c:s copy -map 0:v:0 -map 1:a:0 %s -f matroska -map_metadata -1 "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, track_files, extra_map, output_file)
+    #  execute_command(c)
+    #  # Subtitle extraction to external files: ******
+    #  if args.subext:
+    #    print '* Extracting subtitles to external files...'
+    #    print self.info.sub_languages
+    #    for s in sub_list:
+    #      output_sub_file = '%s.%s.srt'%(self.base_filename, language_code(self.info.sub_languages[s]))
+    #      print 'Extracting subtitle track "%s" to file "%s"'%(s, output_sub_file)
+    #      c = '%s -y -i "%s" -vn -an -c:s srt -map 0:s:%d "%s"'%(FFMPEG_BIN, self.input_file, s, output_sub_file)
+    #      execute_command(c)
+    #else:
+    print '* Copying to "%s"...'%(output_file)
+    if not args.z:
+      shutil.copyfile(original_file, output_file)
     # Pre-tagging if MP4 output:
     if not args.k:
       self.tag(aud_list, sub_list, output_file)
@@ -649,13 +654,8 @@ def tagonly_video_file(f):
 
 def transcode_video_file(f):
 
-  global REMUX_MODE
-
   if args.g and not args.z:
     clean_temp_files()
-
-  if args.d or args.e or args.v:
-    REMUX_MODE = True
 
   v = MediaFile(f)
 
@@ -709,15 +709,15 @@ def transcode_video_file(f):
       sub_list.append(track_sub_spa_n)
 
   audio_track_files = []
-  if REMUX_MODE:
-    if not DUAL:
-      v.transcode_audio_track(track_audio_0, sub_list, TEMP_AV_FILE_0)
-      audio_track_files = [TEMP_AV_FILE_0]
-    else:
-      v.transcode_audio_track(track_audio_0, sub_list, TEMP_AV_FILE_0)
-      audio_track_files = [TEMP_AV_FILE_0]
-      v.transcode_audio_track(track_audio_1, [], TEMP_AV_FILE_1)
-      audio_track_files.append(TEMP_AV_FILE_1)
+  #if REMUX_MODE:
+  #  if not DUAL:
+  #    v.transcode_audio_track(track_audio_0, sub_list, TEMP_AV_FILE_0)
+  #    audio_track_files = [TEMP_AV_FILE_0]
+  #  else:
+  #    v.transcode_audio_track(track_audio_0, sub_list, TEMP_AV_FILE_0)
+  #    audio_track_files = [TEMP_AV_FILE_0]
+  #    v.transcode_audio_track(track_audio_1, [], TEMP_AV_FILE_1)
+  #    audio_track_files.append(TEMP_AV_FILE_1)
 
   # Track remuxing:
   v.remux_tracks(f, audio_track_files, aud_list, sub_list, TEMP_REMUX_FILE)
