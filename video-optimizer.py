@@ -3,7 +3,7 @@
 
 # Imports:
 
-import os, string, argparse, subprocess, distutils.spawn, sys, shutil, random, Image
+import os, string, argparse, subprocess, distutils.spawn, sys, shutil, random
 
 def generate_random_filename(prefix, suffix):
   b = True
@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.12.0'
+VERSION = 'v4.12.1'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 23
@@ -27,7 +27,7 @@ TEMP_AV_FILE_0 = generate_random_filename('temp_avf1_', '.mkv')
 TEMP_AV_FILE_1 = generate_random_filename('temp_avf2_', '.mkv')
 TEMP_BIF_DIR = generate_random_filename('temp_bifd_', '')
 REMUX_MODE = False
-THUMB_POOL_SIZE = 23
+THUMB_POOL_SIZE = 3
 
 if os.name == 'posix':
   FFMPEG_BIN = 'ffmpeg'
@@ -517,6 +517,7 @@ def clean_temp_files():
 #  return v
 
 def thumbnail_quality(f):
+  import Image
   im = Image.open(f)
   lum1 = 0
   lum2 = 0
