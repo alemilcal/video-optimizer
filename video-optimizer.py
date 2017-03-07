@@ -14,11 +14,11 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.13.3'
+VERSION = 'v4.13.4'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 23
-VIDEO_QUALITY_HD = 21
+#VIDEO_QUALITY_HD = 21
 GAIN = '3.0'
 DRC = '2.0'
 SPANISH = 'Spanish'
@@ -53,7 +53,7 @@ parser = argparse.ArgumentParser(description = 'Video transcoder/processor (%s)'
 parser.add_argument('-a', nargs = 1, help = 'audio track (language chosen by default)')
 parser.add_argument('-b', action = 'store_true', help = 'Generate BIF files [BETA]')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
-parser.add_argument('-f', action = 'store_true', help = 'Full HD output (high quality)')
+parser.add_argument('-f', action = 'store_true', help = 'Full HD output (1080p) if available in source')
 parser.add_argument('-g', action = 'store_true', help = 'Debug mode')
 parser.add_argument('-k', action = 'store_true', help = 'Matroska (MKV) output')
 parser.add_argument('-m', action = 'store_true', help = 'Skip adding metadata')
@@ -207,6 +207,7 @@ class MediaFile:
       self.output_file = self.output_file.replace('?', '')
       self.output_file = self.output_file.replace('¡', '')
       self.output_file = self.output_file.replace('!', '')
+    self.output_file += ' '
     if args.f:
       self.output_file += '[HQ]'
     if args.x:
@@ -216,8 +217,8 @@ class MediaFile:
     if args.noren:
       self.output_file += '[OV]'
     if args.k:
-      #self.output_file += '[OV].mkv'
-      self.output_file += '.mkv'
+      self.output_file += '[OV].mkv'
+      #self.output_file += '.mkv'
     else:
       #self.output_file += '[OV].mp4'
       self.output_file += '.mp4'
@@ -330,10 +331,10 @@ class MediaFile:
     if args.q:
       quantizer = int(args.q[0])
     else:
-      if args.f:
-        quantizer = VIDEO_QUALITY_HD
-      else:
-        quantizer = VIDEO_QUALITY
+      #if args.f:
+      #  quantizer = VIDEO_QUALITY_HD
+      #else:
+      quantizer = VIDEO_QUALITY
     if args.x:
       quantizer = quantizer + 1
     options += ' --quality %d '%(quantizer)
@@ -446,6 +447,8 @@ class MediaFile:
         execute_command(c)
         c = '%s "%s" --edit track:s%d --set flag-default=%d'%(MKVPROPEDIT_BIN, output_file, n + 1, defa)
         execute_command(c)
+        if args.e:
+          forc = 0 # Do not tag any subtitle as FORCED when dual audio is selected
         c = '%s "%s" --edit track:s%d --set flag-forced=%d'%(MKVPROPEDIT_BIN, output_file, n + 1, forc)
         execute_command(c)
 
@@ -724,11 +727,13 @@ def transcode_video_file(f):
   #    v.transcode_audio_track(track_audio_1, [], TEMP_AV_FILE_1)
   #    audio_track_files.append(TEMP_AV_FILE_1)
 
-  # Track remuxing:
-  v.remux_tracks(f, audio_track_files, aud_list, sub_list, TEMP_REMUX_FILE)
-
   # Video(/Audio) transcoding:
-  v.transcode(TEMP_REMUX_FILE, aud_list, sub_list)
+  if not args.k:
+    # Track remuxing:
+    v.remux_tracks(f, audio_track_files, aud_list, sub_list, TEMP_REMUX_FILE)
+    v.transcode(TEMP_REMUX_FILE, aud_list, sub_list)
+  else:
+    v.transcode(f, aud_list, sub_list)
 
   # Post-tagging if MKV output:
   if args.k:
