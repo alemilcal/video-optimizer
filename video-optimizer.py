@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.13.4'
+VERSION = 'v4.13.5'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 23
@@ -447,8 +447,8 @@ class MediaFile:
         execute_command(c)
         c = '%s "%s" --edit track:s%d --set flag-default=%d'%(MKVPROPEDIT_BIN, output_file, n + 1, defa)
         execute_command(c)
-        if args.e:
-          forc = 0 # Do not tag any subtitle as FORCED when dual audio is selected
+        #if args.e:
+        #  forc = 0 # Do not tag any subtitle as FORCED when dual audio is selected
         c = '%s "%s" --edit track:s%d --set flag-forced=%d'%(MKVPROPEDIT_BIN, output_file, n + 1, forc)
         execute_command(c)
 
