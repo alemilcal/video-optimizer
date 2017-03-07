@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.13.6'
+VERSION = 'v4.13.7'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 23
@@ -320,6 +320,7 @@ class MediaFile:
     print '* Transcoding media file "%s" to "%s"...'%(input_file, self.output_file)
     #options = ' --audio-fallback ffac3 --loose-anamorphic --modulus 2 --x264-preset fast --h264-profile high --h264-level 4.1'
     options = ' --aencoder av_aac --loose-anamorphic --modulus 2 --x264-preset fast --h264-profile high --h264-level 4.1'
+    options += ' --encopts qpmin=4:cabac=0:ref=2:b-pyramid=none:weightb=0:weightp=0:vbv-maxrate=9500:vbv-bufsize=9500'
     if args.x:
       options += ' --encoder x265 '
     else:
