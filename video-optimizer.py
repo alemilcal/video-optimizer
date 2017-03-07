@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.13.5'
+VERSION = 'v4.13.6'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 VIDEO_QUALITY = 23
@@ -209,7 +209,7 @@ class MediaFile:
       self.output_file = self.output_file.replace('!', '')
     self.output_file += ' '
     if args.f:
-      self.output_file += '[HQ]'
+      self.output_file += '[FullHD]'
     if args.x:
       self.output_file += '[X265]'
     if args.q:
