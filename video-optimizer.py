@@ -14,10 +14,18 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.13.7'
+VERSION = 'v4.14.0'
+APPEND_VERSION_TO_FILENAME = True
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
-VIDEO_QUALITY = 23
+#CODEC_PRESET = 'fast'
+CODEC_PRESET = 'medium'
+VIDEO_QUALITY_720P = 24
+CODEC_VIDEO_MAXRATE_720P = 4000
+CODEC_VIDEO_BUFSIZE_720P = 6000
+VIDEO_QUALITY_1080P = 26
+CODEC_VIDEO_MAXRATE_1080P = 8000
+CODEC_VIDEO_BUFSIZE_1080P = 12000
 #VIDEO_QUALITY_HD = 21
 GAIN = '3.0'
 DRC = '2.0'
@@ -53,20 +61,22 @@ parser = argparse.ArgumentParser(description = 'Video transcoder/processor (%s)'
 parser.add_argument('-a', nargs = 1, help = 'audio track (language chosen by default)')
 parser.add_argument('-b', action = 'store_true', help = 'Generate BIF files [BETA]')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
-parser.add_argument('-f', action = 'store_true', help = 'Full HD output (1080p) if available in source')
+#parser.add_argument('-f', action = 'store_true', help = 'Full HD output (1080p) if available in source')
 parser.add_argument('-g', action = 'store_true', help = 'Debug mode')
 parser.add_argument('-k', action = 'store_true', help = 'Matroska (MKV) output')
+parser.add_argument('-l', action = 'store_true', help = 'Low resolution (max. 720p) output (original resolution by default)')
 parser.add_argument('-m', action = 'store_true', help = 'Skip adding metadata')
 parser.add_argument('-o', nargs = 1, help = 'Output path')
 parser.add_argument('-p', action = 'store_true', help = 'Prioritize default audio tracks (instead looking for adequate amount of channels)')
-parser.add_argument('-q', nargs = 1, help = 'Quality factor (%d by default)'%(VIDEO_QUALITY))
+parser.add_argument('-q', nargs = 1, help = 'Quantizer factor')
 parser.add_argument('-r', action = 'store_true', help = 'Rebuild original folder structure')
 #parser.add_argument('-s', nargs = 1, help = 'Subtitle track (spanish forced searched by default / 0 disables subs)')
-parser.add_argument('--nosub', action = 'store_true', help = 'No subtitles')
+#parser.add_argument('--nosub', action = 'store_true', help = 'No subtitles')
 parser.add_argument('-t', action = 'store_true', help = 'Test mode (only the first %d s of video are processed)'%(TEST_TIME))
 parser.add_argument('--noenc', action = 'store_true', help = 'No video encoding (passthrough) [BETA]')
 parser.add_argument('--noren', action = 'store_true', help = 'No file renaming (instead of removing brackets) [BETA]')
-parser.add_argument('--subext', action = 'store_true', help = 'Extract subtitle tracks to external files also [BETA]')
+parser.add_argument('--subemb', action = 'store_true', help = 'Embed subtitle tracks into output video file')
+parser.add_argument('--tag', action = 'store_true', help = 'Tag video file (more time required for copying original file)')
 parser.add_argument('--tagonly', action = 'store_true', help = 'Tag file name only (no transcoding) [BETA]')
 parser.add_argument('-w', action = 'store_true', help = 'Overwrite existing files (skip by default)')
 parser.add_argument('-x', action = 'store_true', help = 'X265 codec [BETA]')
@@ -118,6 +128,7 @@ class MediaInfo:
 
   def print_info(self):
     print '* Media info found:'
+    print '- Video width: %d (%dp)'%(self.video_width, self.video_resolution)
     for t in range(0, self.audio_tracks_count()):
       print '- Audio track %d: Codec = %s, Language = %s, Channels = %d, Audio Description = %s, Default = %s'%(t, self.audio_codec[t], self.audio_languages[t], self.audio_channels[t], self.audio_descriptions[t], self.audio_default[t])
     for t in range(0, self.sub_tracks_count()):
@@ -207,21 +218,26 @@ class MediaFile:
       self.output_file = self.output_file.replace('?', '')
       self.output_file = self.output_file.replace('¡', '')
       self.output_file = self.output_file.replace('!', '')
-    self.output_file += ' '
-    if args.f:
-      self.output_file += '[FullHD]'
+    #self.output_file += ' '
+    #if args.f:
+    #  self.output_file += '[FullHD]'
+    if args.l:
+      self.output_file += ' [720p]'
     if args.x:
-      self.output_file += '[X265]'
+      self.output_file += ' [X265]'
     if args.q:
-      self.output_file += '[Q%s]'%(args.q[0])
+      self.output_file += ' [Q%s]'%(args.q[0])
     if args.noren:
-      self.output_file += '[OV]'
+      self.output_file += ' [OV]'
+    if APPEND_VERSION_TO_FILENAME:
+      self.output_file += ' [%s]'%(VERSION)
+
+    self.base_filename = self.output_file
     if args.k:
-      self.output_file += '[OV].mkv'
-      #self.output_file += '.mkv'
+      self.output_file += '.mkv'
     else:
-      #self.output_file += '[OV].mp4'
       self.output_file += '.mp4'
+
     # Movie name:
     tmp_movie_name = n.split(' [')[0]
     tmp_movie_name = tmp_movie_name.split('/')
@@ -232,6 +248,14 @@ class MediaFile:
     self.info = MediaInfo()
     if True: #self.extension == 'mkv':
       print '> Extracting file media info...'
+      # Video with
+      o = subprocess.check_output('%s --Inform="Video;%%Width%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
+      o = o.rstrip()
+      self.info.video_width = int(o)
+      if self.info.video_width > 1500:
+        self.info.video_resolution = 1080
+      else:
+        self.info.video_resolution = 720
       # Audio tracks count
       o = subprocess.check_output('%s --Inform="General;%%AudioCount%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
       o = o.rstrip()
@@ -319,23 +343,26 @@ class MediaFile:
   def transcode(self, input_file, aud_list, sub_list):
     print '* Transcoding media file "%s" to "%s"...'%(input_file, self.output_file)
     #options = ' --audio-fallback ffac3 --loose-anamorphic --modulus 2 --x264-preset fast --h264-profile high --h264-level 4.1'
-    options = ' --aencoder av_aac --loose-anamorphic --modulus 2 --x264-preset fast --h264-profile high --h264-level 4.1'
-    options += ' --encopts qpmin=4:cabac=0:ref=2:b-pyramid=none:weightb=0:weightp=0:vbv-maxrate=9500:vbv-bufsize=9500'
+    options = ' --aencoder av_aac --loose-anamorphic --modulus 2 --x264-preset %s --h264-profile high --h264-level 4.1'%(CODEC_PRESET)
     if args.x:
       options += ' --encoder x265 '
     else:
       options += ' --encoder x264 '
-    if args.f:
-      options += ' --maxWidth 1920 '
-    else:
+    if args.l:
       options += ' --maxWidth 1280 '
     if args.q:
       quantizer = int(args.q[0])
     else:
-      #if args.f:
-      #  quantizer = VIDEO_QUALITY_HD
-      #else:
-      quantizer = VIDEO_QUALITY
+      if (args.l) or (self.info.video_resolution == 720):
+        quantizer = VIDEO_QUALITY_720P
+        codec_maxrate = CODEC_VIDEO_MAXRATE_720P
+        codec_bufsize = CODEC_VIDEO_BUFSIZE_720P
+      else:
+        quantizer = VIDEO_QUALITY_1080P
+        codec_maxrate = CODEC_VIDEO_MAXRATE_1080P
+        codec_bufsize = CODEC_VIDEO_BUFSIZE_1080P
+    #options += ' --encopts qpmin=4:cabac=0:ref=2:b-pyramid=none:weightb=0:weightp=0:vbv-maxrate=%s:vbv-bufsize=%s'%(CODEC_VIDEO_MAXRATE, CODEC_VIDEO_BUFSIZE)
+    options += ' --encoder-tune film --encopts vbv-maxrate=%s:vbv-bufsize=%s'%(codec_maxrate, codec_bufsize)
     if args.x:
       quantizer = quantizer + 1
     options += ' --quality %d '%(quantizer)
@@ -702,20 +729,24 @@ def transcode_video_file(f):
   if track_audio_1 >= 0:
     aud_list.append(track_audio_1)
 
-  sub_list = []
-  if not args.nosub: # --nosub = No subtitles
-    if args.e:
-      if track_sub_eng_f >= 0:
-        sub_list.append(track_sub_eng_f)
-      if track_sub_eng_n >= 0:
-        sub_list.append(track_sub_eng_n)
-    if track_sub_spa_f >= 0:
-      sub_list.append(track_sub_spa_f)
-    if track_sub_spa_n >= 0:
-      sub_list.append(track_sub_spa_n)
+  input_sub_list = []
+  if args.e:
+    if track_sub_eng_f >= 0:
+      input_sub_list.append(track_sub_eng_f)
+    if track_sub_eng_n >= 0:
+      input_sub_list.append(track_sub_eng_n)
+  if track_sub_spa_f >= 0:
+    input_sub_list.append(track_sub_spa_f)
+  if track_sub_spa_n >= 0:
+    input_sub_list.append(track_sub_spa_n)
 
   aud_list.sort()
-  sub_list.sort()
+  input_sub_list.sort()
+
+  if args.subemb:
+    sub_list = input_sub_list
+  else:
+    sub_list = []
 
   audio_track_files = []
   #if REMUX_MODE:
@@ -729,7 +760,13 @@ def transcode_video_file(f):
   #    audio_track_files.append(TEMP_AV_FILE_1)
 
   # Video(/Audio) transcoding:
-  if not args.k:
+  #if not args.k:
+  #  # Track remuxing:
+  #  v.remux_tracks(f, audio_track_files, aud_list, sub_list, TEMP_REMUX_FILE)
+  #  v.transcode(TEMP_REMUX_FILE, aud_list, sub_list)
+  #else:
+  #  v.transcode(f, aud_list, sub_list)
+  if args.tag and not args.k:
     # Track remuxing:
     v.remux_tracks(f, audio_track_files, aud_list, sub_list, TEMP_REMUX_FILE)
     v.transcode(TEMP_REMUX_FILE, aud_list, sub_list)
@@ -737,8 +774,21 @@ def transcode_video_file(f):
     v.transcode(f, aud_list, sub_list)
 
   # Post-tagging if MKV output:
-  if args.k:
+  if args.tag and args.k:
     v.tag(aud_list, sub_list, v.output_file)
+
+  # Subtitle extraction to external files
+  if not args.subemb:
+    print '* Extracting subtitles to external files...'
+    #print v.info.sub_languages
+    for s in input_sub_list:
+      output_sub_file = '%s.%d.%s'%(v.base_filename, s + 1, language_code(v.info.sub_languages[s]))
+      if v.info.sub_forced[s]:
+        output_sub_file += '.forced'
+      output_sub_file += '.srt'
+      print 'Extracting subtitle track "%s" to file "%s"'%(s, output_sub_file)
+      c = '%s -y -i "%s" -vn -an -c:s srt -map 0:s:%d "%s"'%(FFMPEG_BIN, v.input_file, s, output_sub_file)
+      execute_command(c)
 
   if not args.g and not args.z:
     clean_temp_files()
