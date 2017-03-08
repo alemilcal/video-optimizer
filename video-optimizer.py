@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.15.0'
+VERSION = 'v4.15.1'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
@@ -792,7 +792,7 @@ def transcode_video_file(f):
     print '* Extracting subtitles to external files...'
     #print v.info.sub_languages
     for s in input_sub_list:
-      output_sub_file = '%s.%d.%s'%(v.base_filename, s + 1, language_code(v.info.sub_languages[s]))
+      output_sub_file = '%s.%s'%(v.base_filename, language_code(v.info.sub_languages[s]))
       if v.info.sub_forced[s]:
         output_sub_file += '.forced'
       output_sub_file += '.srt'
