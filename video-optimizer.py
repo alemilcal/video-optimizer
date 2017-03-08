@@ -14,8 +14,9 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.14.0'
-APPEND_VERSION_TO_FILENAME = True
+VERSION = 'v4.15.0'
+#APPEND_VERSION_TO_FILENAME = True
+APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
 #CODEC_PRESET = 'fast'
@@ -73,6 +74,7 @@ parser.add_argument('-r', action = 'store_true', help = 'Rebuild original folder
 #parser.add_argument('-s', nargs = 1, help = 'Subtitle track (spanish forced searched by default / 0 disables subs)')
 #parser.add_argument('--nosub', action = 'store_true', help = 'No subtitles')
 parser.add_argument('-t', action = 'store_true', help = 'Test mode (only the first %d s of video are processed)'%(TEST_TIME))
+parser.add_argument('--cartoon', action = 'store_true', help = 'Cartoon mode (CODEC specific tune for cartoon movies)')
 parser.add_argument('--noenc', action = 'store_true', help = 'No video encoding (passthrough) [BETA]')
 parser.add_argument('--noren', action = 'store_true', help = 'No file renaming (instead of removing brackets) [BETA]')
 parser.add_argument('--subemb', action = 'store_true', help = 'Embed subtitle tracks into output video file')
@@ -199,6 +201,7 @@ class MediaFile:
       self.output_file = self.base_filename
     else:
       self.output_file = self.base_filename.split(' [')[0]
+      self.output_file = self.output_file.rstrip()
       self.output_file = self.output_file.replace('á', 'a')
       self.output_file = self.output_file.replace('é', 'e')
       self.output_file = self.output_file.replace('í', 'i')
@@ -221,16 +224,19 @@ class MediaFile:
     #self.output_file += ' '
     #if args.f:
     #  self.output_file += '[FullHD]'
+    filename_info = ''
     if args.l:
-      self.output_file += ' [720p]'
+      filename_info += '720p '
     if args.x:
-      self.output_file += ' [X265]'
+      filename_info += 'X265 '
     if args.q:
-      self.output_file += ' [Q%s]'%(args.q[0])
+      filename_info += 'Q%s'%(args.q[0])
     if args.noren:
-      self.output_file += ' [OV]'
+      filename_info += 'OV'
     if APPEND_VERSION_TO_FILENAME:
-      self.output_file += ' [%s]'%(VERSION)
+      filename_info += VERSION
+    if filename_info != '':
+      self.output_file += ' [%s]'%(filename_info.rstrip())
 
     self.base_filename = self.output_file
     if args.k:
@@ -350,19 +356,23 @@ class MediaFile:
       options += ' --encoder x264 '
     if args.l:
       options += ' --maxWidth 1280 '
+      quantizer = VIDEO_QUALITY_720P
+      codec_maxrate = CODEC_VIDEO_MAXRATE_720P
+      codec_bufsize = CODEC_VIDEO_BUFSIZE_720P
+    else:
+      if self.info.video_resolution == 720:
+        options += ' --width 1920 '
+      quantizer = VIDEO_QUALITY_1080P
+      codec_maxrate = CODEC_VIDEO_MAXRATE_1080P
+      codec_bufsize = CODEC_VIDEO_BUFSIZE_1080P
     if args.q:
       quantizer = int(args.q[0])
-    else:
-      if (args.l) or (self.info.video_resolution == 720):
-        quantizer = VIDEO_QUALITY_720P
-        codec_maxrate = CODEC_VIDEO_MAXRATE_720P
-        codec_bufsize = CODEC_VIDEO_BUFSIZE_720P
-      else:
-        quantizer = VIDEO_QUALITY_1080P
-        codec_maxrate = CODEC_VIDEO_MAXRATE_1080P
-        codec_bufsize = CODEC_VIDEO_BUFSIZE_1080P
     #options += ' --encopts qpmin=4:cabac=0:ref=2:b-pyramid=none:weightb=0:weightp=0:vbv-maxrate=%s:vbv-bufsize=%s'%(CODEC_VIDEO_MAXRATE, CODEC_VIDEO_BUFSIZE)
-    options += ' --encoder-tune film --encopts vbv-maxrate=%s:vbv-bufsize=%s'%(codec_maxrate, codec_bufsize)
+    if args.cartoon:
+      encoder_tune = 'animation'
+    else:
+      encoder_tune = 'film'
+    options += ' --encoder-tune %s --encopts vbv-maxrate=%s:vbv-bufsize=%s'%(encoder_tune, codec_maxrate, codec_bufsize)
     if args.x:
       quantizer = quantizer + 1
     options += ' --quality %d '%(quantizer)
