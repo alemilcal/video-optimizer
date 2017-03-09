@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.15.1'
+VERSION = 'v4.15.2'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
@@ -176,79 +176,103 @@ class MediaFile:
     self.input_file = input_file
 
     # Extension extraction
-    print '* Extracting extension...'
+    print '* Extracting file name path & extension...'
     r = os.path.splitext(self.input_file)
     n = r[0]
+    input_path = r[0].rsplit('/', 1)
+    if len(input_path) > 1:
+      self.input_path = input_path[0] + '/'
+      self.base_input_filename = input_path[1]
+    else:
+      self.input_path = ''
+      self.base_input_filename = input_path[0]
     self.extension = r[1].lower()
     self.extension = self.extension[1:]
-    print '- Extension found: %s'%(self.extension)
+    print '- Input path: "%s"'%(self.input_path)
+    print '- Base input file name: "%s"'%(self.base_input_filename)
+    print '- Extension: "%s"'%(self.extension)
 
     # Output file calculation
     if args.o: # Output path
-      if not args.r: # Rebuild original folder structure
-        d = args.o[0]
-        if not d[-1] == '/' and not d == '\\':
-          d += '\\'
-        n = d + os.path.basename(n)
-      else:
-        if n[0] == '.':
-          n = n[1:]
-        n = args.o[0] + n
-    self.base_filename = n
-    self.output_bif_file = self.base_filename + '.bif'
-    self.output_jpg_file = self.base_filename + '.jpg'
-    if args.noren:
-      self.output_file = self.base_filename
+      d = args.o[0]
+      if not d[-1] == '/':
+        d += '/'
+      self.output_path = d
     else:
-      self.output_file = self.base_filename.split(' [')[0]
-      self.output_file = self.output_file.rstrip()
-      self.output_file = self.output_file.replace('á', 'a')
-      self.output_file = self.output_file.replace('é', 'e')
-      self.output_file = self.output_file.replace('í', 'i')
-      self.output_file = self.output_file.replace('ó', 'o')
-      self.output_file = self.output_file.replace('ú', 'u')
-      self.output_file = self.output_file.replace('ü', 'u')
-      self.output_file = self.output_file.replace('ñ', 'n')
-      self.output_file = self.output_file.replace('ç', 'c')
-      self.output_file = self.output_file.replace('Á', 'A')
-      self.output_file = self.output_file.replace('É', 'E')
-      self.output_file = self.output_file.replace('Í', 'I')
-      self.output_file = self.output_file.replace('Ó', 'O')
-      self.output_file = self.output_file.replace('Ú', 'U')
-      self.output_file = self.output_file.replace('Ü', 'U')
-      self.output_file = self.output_file.replace('Ñ', 'N')
-      self.output_file = self.output_file.replace('¿', '')
-      self.output_file = self.output_file.replace('?', '')
-      self.output_file = self.output_file.replace('¡', '')
-      self.output_file = self.output_file.replace('!', '')
-    #self.output_file += ' '
-    #if args.f:
-    #  self.output_file += '[FullHD]'
-    filename_info = ''
-    if args.l:
-      filename_info += '720p '
-    if args.x:
-      filename_info += 'X265 '
-    if args.q:
-      filename_info += 'Q%s'%(args.q[0])
-    if args.noren:
-      filename_info += 'OV'
-    if APPEND_VERSION_TO_FILENAME:
-      filename_info += VERSION
-    if filename_info != '':
-      self.output_file += ' [%s]'%(filename_info.rstrip())
+      self.output_path = ''
+    self.output_path += self.input_path
+    print '- Output path: "%s"'%(self.output_path)
 
-    self.base_filename = self.output_file
+    self.output_bif_file = self.input_path + self.base_input_filename + '.bif'
+    self.output_jpg_file = self.input_path + self.base_input_filename + '.jpg'
+
+    if args.noren:
+      self.base_output_filename = self.base_input_filename
+    else:
+      self.base_output_filename = self.base_input_filename.rsplit('[')[0]
+      self.base_output_filename = self.base_output_filename.rstrip()
+      self.base_output_filename = self.base_output_filename.replace('á', 'a')
+      self.base_output_filename = self.base_output_filename.replace('é', 'e')
+      self.base_output_filename = self.base_output_filename.replace('í', 'i')
+      self.base_output_filename = self.base_output_filename.replace('ó', 'o')
+      self.base_output_filename = self.base_output_filename.replace('ú', 'u')
+      self.base_output_filename = self.base_output_filename.replace('ü', 'u')
+      self.base_output_filename = self.base_output_filename.replace('ñ', 'n')
+      self.base_output_filename = self.base_output_filename.replace('ç', 'c')
+      self.base_output_filename = self.base_output_filename.replace('Á', 'A')
+      self.base_output_filename = self.base_output_filename.replace('É', 'E')
+      self.base_output_filename = self.base_output_filename.replace('Í', 'I')
+      self.base_output_filename = self.base_output_filename.replace('Ó', 'O')
+      self.base_output_filename = self.base_output_filename.replace('Ú', 'U')
+      self.base_output_filename = self.base_output_filename.replace('Ü', 'U')
+      self.base_output_filename = self.base_output_filename.replace('Ñ', 'N')
+      self.base_output_filename = self.base_output_filename.replace('¿', '')
+      self.base_output_filename = self.base_output_filename.replace('?', '')
+      self.base_output_filename = self.base_output_filename.replace('¡', '')
+      self.base_output_filename = self.base_output_filename.replace('!', '')
+      filename_info = ''
+      if args.l:
+        filename_info += '720p '
+      if args.x:
+        filename_info += 'X265 '
+      if args.q:
+        filename_info += 'Q%s'%(args.q[0])
+      if args.noren:
+        filename_info += 'OV'
+      if APPEND_VERSION_TO_FILENAME:
+        filename_info += VERSION
+      if filename_info != '':
+        self.base_output_filename += ' [%s]'%(filename_info.rstrip())
+
+    if not args.o:
+      self.output_file = self.output_path + self.base_output_filename
+    else:
+      self.output_file = self.output_path + self.base_output_filename
     if args.k:
       self.output_file += '.mkv'
     else:
       self.output_file += '.mp4'
 
+    #print '- Output path: "%s"/'%(self.output_path)
+    print '- Output file name: "%s"'%(self.output_file)
+
     # Movie name:
-    tmp_movie_name = n.split(' [')[0]
-    tmp_movie_name = tmp_movie_name.split('/')
+    #tmp_movie_name = self.base_input_filename.split('[')[0]
+    tmp_movie_name = self.base_input_filename.split('[')
     #print tmp_movie_name
-    self.movie_name = tmp_movie_name[-1]
+    #tmp_movie_name = tmp_movie_name.rstrip()
+    #tmp_movie_name = tmp_movie_name.split('/')
+    #print tmp_movie_name
+    #self.movie_name = tmp_movie_name[-1]
+    tmp_movie_name = tmp_movie_name[0].rstrip()
+    movnamyea = tmp_movie_name
+    movnamyea = movnamyea.split('/')
+    movnamyea = movnamyea[-1]
+    movnamyea = movnamyea.split('\\')
+    movnamyea = movnamyea[-1]
+    movnam = movnamyea
+    self.movie_name = movnam
+    print '- Extracted title: "%s"'%(self.movie_name)
 
     # Media info extraction
     self.info = MediaInfo()
@@ -490,7 +514,7 @@ class MediaFile:
         c = '%s "%s" --edit track:s%d --set flag-forced=%d'%(MKVPROPEDIT_BIN, output_file, n + 1, forc)
         execute_command(c)
 
-  def remux_tracks(self, original_file, av_files, aud_list, sub_list, output_file):
+#  def remux_tracks(self, original_file, av_files, aud_list, sub_list, output_file):
     #global REMUX_MODE
     #if REMUX_MODE:
     #  print '* Remuxing to "%s"...'%(output_file)
@@ -518,12 +542,12 @@ class MediaFile:
     #      c = '%s -y -i "%s" -vn -an -c:s srt -map 0:s:%d "%s"'%(FFMPEG_BIN, self.input_file, s, output_sub_file)
     #      execute_command(c)
     #else:
-    print '* Copying to "%s"...'%(output_file)
-    if not args.z:
-      shutil.copyfile(original_file, output_file)
-    # Pre-tagging if MP4 output:
-    if not args.k:
-      self.tag(aud_list, sub_list, output_file)
+#    print '* Copying to "%s"...'%(output_file)
+#    if not args.z:
+#      shutil.copyfile(original_file, output_file)
+#    # Pre-tagging if MP4 output:
+#    if not args.k:
+#      self.tag(aud_list, sub_list, output_file)
 
 # Subroutines:
 
@@ -759,29 +783,11 @@ def transcode_video_file(f):
     sub_list = []
 
   audio_track_files = []
-  #if REMUX_MODE:
-  #  if not DUAL:
-  #    v.transcode_audio_track(track_audio_0, sub_list, TEMP_AV_FILE_0)
-  #    audio_track_files = [TEMP_AV_FILE_0]
-  #  else:
-  #    v.transcode_audio_track(track_audio_0, sub_list, TEMP_AV_FILE_0)
-  #    audio_track_files = [TEMP_AV_FILE_0]
-  #    v.transcode_audio_track(track_audio_1, [], TEMP_AV_FILE_1)
-  #    audio_track_files.append(TEMP_AV_FILE_1)
 
-  # Video(/Audio) transcoding:
-  #if not args.k:
-  #  # Track remuxing:
-  #  v.remux_tracks(f, audio_track_files, aud_list, sub_list, TEMP_REMUX_FILE)
-  #  v.transcode(TEMP_REMUX_FILE, aud_list, sub_list)
-  #else:
-  #  v.transcode(f, aud_list, sub_list)
   if args.tag and not args.k:
-    # Track remuxing:
-    v.remux_tracks(f, audio_track_files, aud_list, sub_list, TEMP_REMUX_FILE)
-    v.transcode(TEMP_REMUX_FILE, aud_list, sub_list)
-  else:
-    v.transcode(f, aud_list, sub_list)
+    c = '%s "%s" --edit info --set title="%s"'%(MKVPROPEDIT_BIN, f, v.movie_name)
+    execute_command(c)
+  v.transcode(f, aud_list, sub_list)
 
   # Post-tagging if MKV output:
   if args.tag and args.k:
@@ -792,7 +798,7 @@ def transcode_video_file(f):
     print '* Extracting subtitles to external files...'
     #print v.info.sub_languages
     for s in input_sub_list:
-      output_sub_file = '%s.%s'%(v.base_filename, language_code(v.info.sub_languages[s]))
+      output_sub_file = '%s.%s'%(v.output_path + v.base_output_filename, language_code(v.info.sub_languages[s]))
       if v.info.sub_forced[s]:
         output_sub_file += '.forced'
       output_sub_file += '.srt'
