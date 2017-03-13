@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.15.2'
+VERSION = 'v4.15.3'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
@@ -281,7 +281,10 @@ class MediaFile:
       # Video with
       o = subprocess.check_output('%s --Inform="Video;%%Width%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
       o = o.rstrip()
-      self.info.video_width = int(o)
+      try:
+        self.info.video_width = int(o)
+      except:
+        self.info.video_width = 0
       if self.info.video_width > 1500:
         self.info.video_resolution = 1080
       else:
@@ -289,7 +292,10 @@ class MediaFile:
       # Audio tracks count
       o = subprocess.check_output('%s --Inform="General;%%AudioCount%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
       o = o.rstrip()
-      audcnt = int(o)
+      try:
+        audcnt = int(o)
+      except:
+        audcnt = 0
       # Audio CODECs
       o = subprocess.check_output('%s --Inform="General;%%Audio_Format_List%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
       #print '*'+o+'*'
@@ -624,6 +630,9 @@ def generate_bif_file(f):
     if not args.g and not args.w and os.path.isfile(v.output_bif_file):
       print '* Destination file already exists (skipping)'
       return
+  else:
+    print '* ERROR: input file is not a video file (skipping)'
+    return
 
   if not args.z:
     try:
@@ -730,6 +739,9 @@ def transcode_video_file(f):
     if not args.g and not args.w and os.path.isfile(v.output_file):
       print '* Destination file already exists (skipping)'
       return
+  else:
+    print '* ERROR: input file is not a video file (skipping)'
+    return
 
   # Audio/sub tracks processing:
 
