@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.15.3'
+VERSION = 'v4.15.4'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
@@ -379,11 +379,11 @@ class MediaFile:
   def transcode(self, input_file, aud_list, sub_list):
     print '* Transcoding media file "%s" to "%s"...'%(input_file, self.output_file)
     #options = ' --audio-fallback ffac3 --loose-anamorphic --modulus 2 --x264-preset fast --h264-profile high --h264-level 4.1'
-    options = ' --aencoder av_aac --loose-anamorphic --modulus 2 --x264-preset %s --h264-profile high --h264-level 4.1'%(CODEC_PRESET)
-    if args.x:
-      options += ' --encoder x265 '
+    options = ' --aencoder av_aac --loose-anamorphic --modulus 2 --encoder-preset %s '%(CODEC_PRESET)
+    if not args.x:
+      options += ' --encoder x264 --encoder-profile high --encoder-level 4.1'
     else:
-      options += ' --encoder x264 '
+      options += ' --encoder x265 '
     if args.l:
       options += ' --maxWidth 1280 '
       quantizer = VIDEO_QUALITY_720P
@@ -398,11 +398,13 @@ class MediaFile:
     if args.q:
       quantizer = int(args.q[0])
     #options += ' --encopts qpmin=4:cabac=0:ref=2:b-pyramid=none:weightb=0:weightp=0:vbv-maxrate=%s:vbv-bufsize=%s'%(CODEC_VIDEO_MAXRATE, CODEC_VIDEO_BUFSIZE)
-    if args.cartoon:
+    if args.cartoon and not args.x:
       encoder_tune = 'animation'
     else:
       encoder_tune = 'film'
-    options += ' --encoder-tune %s --encopts vbv-maxrate=%s:vbv-bufsize=%s'%(encoder_tune, codec_maxrate, codec_bufsize)
+    if not args.x:
+      options += ' --encoder-tune %s '%(encoder_tune)
+    options += ' --encopts vbv-maxrate=%s:vbv-bufsize=%s'%(codec_maxrate, codec_bufsize)
     if args.x:
       quantizer = quantizer + 1
     options += ' --quality %d '%(quantizer)
