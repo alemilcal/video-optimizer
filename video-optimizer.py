@@ -14,17 +14,17 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.15.6'
+VERSION = 'v4.16.0'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
 TEST_TIME = 300 # 300 seg = 5 min
-#CODEC_PRESET = 'fast'
-CODEC_PRESET = 'medium'
-VIDEO_QUALITY_720P = 24
+CODEC_PRESET = 'fast'
+#CODEC_PRESET = 'medium'
+VIDEO_QUALITY_720P = 23
 CODEC_VIDEO_MAXRATE_720P = 4000
 CODEC_VIDEO_BUFSIZE_720P = 6000
-VIDEO_QUALITY_1080P = 26
+VIDEO_QUALITY_1080P = 25
 CODEC_VIDEO_MAXRATE_1080P = 8000
 CODEC_VIDEO_BUFSIZE_1080P = 12000
 #VIDEO_QUALITY_HD = 21
@@ -62,17 +62,17 @@ parser = argparse.ArgumentParser(description = 'Video transcoder/processor (%s)'
 parser.add_argument('-a', nargs = 1, help = 'audio track (language chosen by default)')
 parser.add_argument('-b', action = 'store_true', help = 'Generate BIF files [BETA]')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
-#parser.add_argument('-f', action = 'store_true', help = 'Full HD output (1080p) if available in source')
+parser.add_argument('-f', action = 'store_true', help = 'Full HD output (1080p) by reescaling up from 720p (original resolution by default')
 parser.add_argument('-g', action = 'store_true', help = 'Debug mode')
 parser.add_argument('-k', action = 'store_true', help = 'Matroska (MKV) output')
-parser.add_argument('-l', action = 'store_true', help = 'Low resolution (max. 720p) output (original resolution by default)')
+#parser.add_argument('-l', action = 'store_true', help = 'Low resolution (max. 720p) output (original resolution by default)')
 parser.add_argument('-m', action = 'store_true', help = 'Skip adding metadata')
 parser.add_argument('-o', nargs = 1, help = 'Output path')
 parser.add_argument('-p', action = 'store_true', help = 'Prioritize default audio tracks (instead looking for adequate amount of channels)')
 parser.add_argument('-q', nargs = 1, help = 'Quantizer factor')
 parser.add_argument('-r', action = 'store_true', help = 'Rebuild original folder structure')
 #parser.add_argument('-s', nargs = 1, help = 'Subtitle track (spanish forced searched by default / 0 disables subs)')
-#parser.add_argument('--nosub', action = 'store_true', help = 'No subtitles')
+parser.add_argument('--nosub', action = 'store_true', help = 'No subtitles')
 parser.add_argument('-t', action = 'store_true', help = 'Test mode (only the first %d s of video are processed)'%(TEST_TIME))
 parser.add_argument('--cartoon', action = 'store_true', help = 'Cartoon mode (CODEC specific tune for cartoon movies)')
 parser.add_argument('--noenc', action = 'store_true', help = 'No video encoding (passthrough) [BETA]')
@@ -231,8 +231,8 @@ class MediaFile:
       self.base_output_filename = self.base_output_filename.replace('¡', '')
       self.base_output_filename = self.base_output_filename.replace('!', '')
       filename_info = ''
-      if args.l:
-        filename_info += '720p '
+      if args.f:
+        filename_info += '1080pR '
       if args.x:
         filename_info += 'X265 '
       if args.q:
@@ -384,17 +384,17 @@ class MediaFile:
       options += ' --encoder x264 --encoder-profile high --encoder-level 4.1'
     else:
       options += ' --encoder x265 '
-    if args.l:
-      options += ' --maxWidth 1280 '
-      quantizer = VIDEO_QUALITY_720P
-      codec_maxrate = CODEC_VIDEO_MAXRATE_720P
-      codec_bufsize = CODEC_VIDEO_BUFSIZE_720P
-    else:
+    if args.f:
       if self.info.video_resolution == 720:
         options += ' --width 1920 '
       quantizer = VIDEO_QUALITY_1080P
       codec_maxrate = CODEC_VIDEO_MAXRATE_1080P
       codec_bufsize = CODEC_VIDEO_BUFSIZE_1080P
+    else:
+      options += ' --maxWidth 1280 '
+      quantizer = VIDEO_QUALITY_720P
+      codec_maxrate = CODEC_VIDEO_MAXRATE_720P
+      codec_bufsize = CODEC_VIDEO_BUFSIZE_720P
     if args.q:
       quantizer = int(args.q[0])
     #options += ' --encopts qpmin=4:cabac=0:ref=2:b-pyramid=none:weightb=0:weightp=0:vbv-maxrate=%s:vbv-bufsize=%s'%(CODEC_VIDEO_MAXRATE, CODEC_VIDEO_BUFSIZE)
@@ -808,7 +808,7 @@ def transcode_video_file(f):
     v.tag(aud_list, sub_list, v.output_file)
 
   # Subtitle extraction to external files
-  if not args.subemb:
+  if not args.subemb and not args.nosub:
     print '* Extracting subtitles to external files...'
     #print v.info.sub_languages
     for s in input_sub_list:
