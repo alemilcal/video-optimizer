@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.17.0'
+VERSION = 'v4.18.0'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
@@ -78,6 +78,7 @@ parser.add_argument('--cartoon', action = 'store_true', help = 'Cartoon mode (CO
 parser.add_argument('--noenc', action = 'store_true', help = 'No video encoding (passthrough) [BETA]')
 parser.add_argument('--noren', action = 'store_true', help = 'No file renaming (instead of removing brackets) [BETA]')
 parser.add_argument('--subemb', action = 'store_true', help = 'Embed subtitle tracks into output video file')
+parser.add_argument('--subonly', action = 'store_true', help = 'Extract subtitle tracks only (no video transcoding)')
 parser.add_argument('--tag', action = 'store_true', help = 'Tag video file (more time required for copying original file)')
 parser.add_argument('--tagonly', action = 'store_true', help = 'Tag file name only (no transcoding) [BETA]')
 parser.add_argument('-w', action = 'store_true', help = 'Overwrite existing files (skip by default)')
@@ -804,27 +805,29 @@ def transcode_video_file(f):
 
   audio_track_files = []
 
-  if args.tag and not args.k:
-    c = '%s "%s" --edit info --set title="%s"'%(MKVPROPEDIT_BIN, f, v.movie_name)
-    execute_command(c)
-  v.transcode(f, aud_list, sub_list)
-
-  # Post-tagging if MKV output:
-  if args.tag and args.k:
-    v.tag(aud_list, sub_list, v.output_file)
+  if not args.subonly:
+    if args.tag and not args.k:
+      c = '%s "%s" --edit info --set title="%s"'%(MKVPROPEDIT_BIN, f, v.movie_name)
+      execute_command(c)
+    v.transcode(f, aud_list, sub_list)
+    # Post-tagging if MKV output:
+    if args.tag and args.k:
+      v.tag(aud_list, sub_list, v.output_file)
 
   # Subtitle extraction to external files
   if not args.subemb and not args.nosub:
     print '* Extracting subtitles to external files...'
-    #print v.info.sub_languages
-    for s in input_sub_list:
-      output_sub_file = '%s.%s'%(v.output_path + v.base_output_filename, language_code(v.info.sub_languages[s]))
-      if v.info.sub_forced[s]:
-        output_sub_file += '.forced'
-      output_sub_file += '.srt'
-      print 'Extracting subtitle track "%s" to file "%s"'%(s, output_sub_file)
-      c = '%s -y -i "%s" -vn -an -c:s srt -map 0:s:%d "%s"'%(FFMPEG_BIN, v.input_file, s, output_sub_file)
-      execute_command(c)
+    if not input_sub_list:
+      print '- No compatible subtitle tracks found in input file'
+    else:
+      for s in input_sub_list:
+        output_sub_file = '%s.%s'%(v.output_path + v.base_output_filename, language_code(v.info.sub_languages[s]))
+        if v.info.sub_forced[s]:
+          output_sub_file += '.forced'
+        output_sub_file += '.srt'
+        print '- Extracting subtitle track "%s" to file "%s"'%(s, output_sub_file)
+        c = '%s -y -i "%s" -vn -an -c:s srt -map 0:s:%d "%s"'%(FFMPEG_BIN, v.input_file, s, output_sub_file)
+        execute_command(c)
 
   if not args.g and not args.z:
     clean_temp_files()
