@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.16.0'
+VERSION = 'v4.17.0'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
@@ -120,6 +120,7 @@ class MediaInfo:
     self.audio_descriptions = []
     self.audio_default = []
     self.sub_languages = []
+    self.sub_formats = []
     self.sub_forced = []
 
   def audio_tracks_count(self):
@@ -134,7 +135,7 @@ class MediaInfo:
     for t in range(0, self.audio_tracks_count()):
       print '- Audio track %d: Codec = %s, Language = %s, Channels = %d, Audio Description = %s, Default = %s'%(t, self.audio_codec[t], self.audio_languages[t], self.audio_channels[t], self.audio_descriptions[t], self.audio_default[t])
     for t in range(0, self.sub_tracks_count()):
-      print '- Subtitle track %d: Language = %s, Forced = %s'%(t, self.sub_languages[t], self.sub_forced[t])
+      print '- Subtitle track %d: Language = %s, Format = %s, Forced = %s'%(t, self.sub_languages[t], self.sub_formats[t], self.sub_forced[t])
 
   def select_audio_track(self, l):
     print '* Searching for %s audio track...'%(l)
@@ -163,7 +164,7 @@ class MediaInfo:
     print '* Searching for %s (Forced = %s) subtitle track...'%(l, f)
     r = -1
     for i in range(0, self.sub_tracks_count()):
-      if self.sub_languages[i] == l and self.sub_forced[i] == f:
+      if self.sub_languages[i] == l and not self.sub_formats[i] == 'PGS' and self.sub_forced[i] == f:
         r = i
         break
     print '- Subtitle track selected = %d'%(r)
@@ -357,6 +358,11 @@ class MediaFile:
         o = o.rstrip()
         o = o.split(' / ')
         self.info.sub_languages = o
+        # Subtitle formats
+        o = subprocess.check_output('%s --Inform="General;%%Text_Format_List%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
+        o = o.rstrip()
+        o = o.split(' / ')
+        self.info.sub_formats = o
         # Subtitle forced (by "Forced" field)
         o = subprocess.check_output('%s --Inform="Text;%%Forced%%/" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
         o = o.rstrip()
