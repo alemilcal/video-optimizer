@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.18.0'
+VERSION = 'v4.18.1'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
@@ -481,7 +481,7 @@ class MediaFile:
     execute_command(c)
 
   def tag(self, aud_list, sub_list, output_file):
-    if not args.m:
+    if self.extension == 'mkv' and not args.m:
       movnamyea = self.movie_name
       movnamyea = movnamyea.split('/')
       movnamyea = movnamyea[-1]
@@ -734,8 +734,9 @@ def generate_bif_file(f):
 
 def tagonly_video_file(f):
   v = MediaFile(f)
-  c = '%s "%s" --edit info --set title="%s"'%(MKVPROPEDIT_BIN, v.input_file, v.movie_name)
-  execute_command(c)
+  if v.extension == 'mkv':
+    c = '%s "%s" --edit info --set title="%s"'%(MKVPROPEDIT_BIN, v.input_file, v.movie_name)
+    execute_command(c)
 
 def transcode_video_file(f):
 
@@ -806,7 +807,7 @@ def transcode_video_file(f):
   audio_track_files = []
 
   if not args.subonly:
-    if args.tag and not args.k:
+    if v.extension == 'mkv' and args.tag and not args.k:
       c = '%s "%s" --edit info --set title="%s"'%(MKVPROPEDIT_BIN, f, v.movie_name)
       execute_command(c)
     v.transcode(f, aud_list, sub_list)
