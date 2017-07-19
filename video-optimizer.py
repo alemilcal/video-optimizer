@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.18.2'
+VERSION = 'v4.19.0'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
@@ -74,6 +74,7 @@ parser.add_argument('-r', action = 'store_true', help = 'Rebuild original folder
 #parser.add_argument('-s', nargs = 1, help = 'Subtitle track (spanish forced searched by default / 0 disables subs)')
 parser.add_argument('--nosub', action = 'store_true', help = 'No subtitles')
 parser.add_argument('-t', action = 'store_true', help = 'Test mode (only the first %d s of video are processed)'%(TEST_TIME))
+parser.add_argument('--aviout', action = 'store_true', help = 'AVI output (BETA)')
 parser.add_argument('--cartoon', action = 'store_true', help = 'Cartoon mode (CODEC specific tune for cartoon movies)')
 parser.add_argument('--noenc', action = 'store_true', help = 'No video encoding (passthrough) [BETA]')
 parser.add_argument('--noren', action = 'store_true', help = 'No file renaming (instead of removing brackets) [BETA]')
@@ -88,10 +89,13 @@ parser.add_argument('input', nargs='*', help = 'input file(s) (if missing proces
 args = parser.parse_args()
 
 FFMPEG_TEST_OPTS = ''
+FFMPEG_OVERWRITE_OPTS = ''
 HANDBRAKE_TEST_OPTS = ''
 if args.t:
   FFMPEG_TEST_OPTS = ' -t %d '%(TEST_TIME)
   HANDBRAKE_TEST_OPTS = ' --stop-at duration:%s '%(TEST_TIME)
+if args.w:
+  FFMPEG_OVERWRITE_OPTS = ' -y '
 
 # Auxiliar functions:
 
@@ -253,7 +257,10 @@ class MediaFile:
     if args.k:
       self.output_file += '.mkv'
     else:
-      self.output_file += '.mp4'
+      if args.aviout:
+        self.output_file += '.avi'
+      else:
+        self.output_file += '.mp4'
 
     #print '- Output path: "%s"/'%(self.output_path)
     print '- Output file name: "%s"'%(self.output_file)
@@ -440,9 +447,12 @@ class MediaFile:
         subopts += '%d,'%(n + 1)
       subopts = subopts[:-1]
     if args.noenc:
-      c = '%s %s -i "%s" -map 0:v:0 -c:v copy -map 0:a %s -map 0:s -c:s copy "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, input_file, audopts, self.output_file)
+      c = '%s %s %s -i "%s" -map 0:v:0 -c:v copy -map 0:a %s -map 0:s -c:s copy "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, FFMPEG_OVERWRITE_OPTS, input_file, audopts, self.output_file)
     else:
-      c = '%s %s -i "%s" --optimize --markers %s %s %s -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, subopts, self.output_file)
+      if args.aviout: # AVI output
+        c = '%s %s %s -i "%s" -map 0:v:0 -map 0:a:0 -s 640x360 -vtag "xvid" -q:v 4 -b:a 128k -ar 48000 "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, FFMPEG_OVERWRITE_OPTS, input_file, self.output_file)
+      else: # MP4/MKV output
+        c = '%s %s -i "%s" --optimize --markers %s %s %s -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, subopts, self.output_file)
     execute_command(c)
 
   def transcode_audio_track(self, audio_track, sub_tracks, output_file):
@@ -827,7 +837,7 @@ def transcode_video_file(f):
           output_sub_file += '.forced'
         output_sub_file += '.srt'
         print '- Extracting subtitle track "%s" to file "%s"'%(s, output_sub_file)
-        c = '%s -y -i "%s" -vn -an -c:s srt -map 0:s:%d "%s"'%(FFMPEG_BIN, v.input_file, s, output_sub_file)
+        c = '%s %s %s -i "%s" -vn -an -c:s srt -map 0:s:%d "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, FFMPEG_OVERWRITE_OPTS, v.input_file, s, output_sub_file)
         execute_command(c)
 
   if not args.g and not args.z:
