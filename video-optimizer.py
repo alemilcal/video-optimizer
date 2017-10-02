@@ -14,20 +14,27 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.19.0'
+VERSION = 'v4.21.2'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
-VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv']
+VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv']
 TEST_TIME = 300 # 300 seg = 5 min
 CODEC_PRESET = 'fast'
-#CODEC_PRESET = 'medium'
+CODEC_PRESET_HQ = 'medium'
 VIDEO_QUALITY_720P = 23
-CODEC_VIDEO_MAXRATE_720P = 4000
-CODEC_VIDEO_BUFSIZE_720P = 6000
-VIDEO_QUALITY_1080P = 25
-CODEC_VIDEO_MAXRATE_1080P = 8000
-CODEC_VIDEO_BUFSIZE_1080P = 12000
-#VIDEO_QUALITY_HD = 21
+VIDEO_QUALITY_720P_HQ = 21
+#CODEC_VIDEO_MAXRATE_720P = 4000
+#CODEC_VIDEO_BUFSIZE_720P = 8000
+#CODEC_VIDEO_MAXRATE_720P_HQ = 8000
+#CODEC_VIDEO_BUFSIZE_720P_HQ = 16000
+VIDEO_QUALITY_1080P = 23
+VIDEO_QUALITY_1080P_HQ = 21
+#CODEC_VIDEO_MAXRATE_1080P = 8000
+#CODEC_VIDEO_BUFSIZE_1080P = 16000
+#CODEC_VIDEO_MAXRATE_1080P_HQ = 16000
+#CODEC_VIDEO_BUFSIZE_1080P_HQ = 32000
+CODEC_AUDIO_BITRATE = 128
+CODEC_AUDIO_BITRATE_HQ = 192
 GAIN = '3.0'
 DRC = '2.0'
 SPANISH = 'Spanish'
@@ -62,7 +69,7 @@ parser = argparse.ArgumentParser(description = 'Video transcoder/processor (%s)'
 parser.add_argument('-a', nargs = 1, help = 'audio track (language chosen by default)')
 parser.add_argument('-b', action = 'store_true', help = 'Generate BIF files [BETA]')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
-parser.add_argument('-f', action = 'store_true', help = 'Full HD output (1080p) by reescaling up from 720p (original resolution by default')
+parser.add_argument('-f', action = 'store_true', help = 'Full HD output (1080p)')
 parser.add_argument('-g', action = 'store_true', help = 'Debug mode')
 parser.add_argument('-k', action = 'store_true', help = 'Matroska (MKV) output')
 #parser.add_argument('-l', action = 'store_true', help = 'Low resolution (max. 720p) output (original resolution by default)')
@@ -76,6 +83,7 @@ parser.add_argument('--nosub', action = 'store_true', help = 'No subtitles')
 parser.add_argument('-t', action = 'store_true', help = 'Test mode (only the first %d s of video are processed)'%(TEST_TIME))
 parser.add_argument('--aviout', action = 'store_true', help = 'AVI output (BETA)')
 parser.add_argument('--cartoon', action = 'store_true', help = 'Cartoon mode (CODEC specific tune for cartoon movies)')
+parser.add_argument('--hq', action = 'store_true', help = 'High Quality')
 parser.add_argument('--noenc', action = 'store_true', help = 'No video encoding (passthrough) [BETA]')
 parser.add_argument('--noren', action = 'store_true', help = 'No file renaming (instead of removing brackets) [BETA]')
 parser.add_argument('--subemb', action = 'store_true', help = 'Embed subtitle tracks into output video file')
@@ -238,9 +246,11 @@ class MediaFile:
       self.base_output_filename = self.base_output_filename.replace('!', '')
       filename_info = ''
       if args.f:
-        filename_info += '1080pR '
+        filename_info += '1080p '
+      if args.hq:
+        filename_info += 'HQ '
       if args.x:
-        filename_info += 'X265 '
+        filename_info += 'HEVC '
       if args.q:
         filename_info += 'Q%s'%(args.q[0])
       if args.noren:
@@ -393,24 +403,43 @@ class MediaFile:
   def transcode(self, input_file, aud_list, sub_list):
     print '* Transcoding media file "%s" to "%s"...'%(input_file, self.output_file)
     #options = ' --audio-fallback ffac3 --loose-anamorphic --modulus 2 --x264-preset fast --h264-profile high --h264-level 4.1'
-    options = ' --aencoder av_aac --loose-anamorphic --modulus 2 --encoder-preset %s --cfr '%(CODEC_PRESET)
+    if args.hq:
+      codec_pre = CODEC_PRESET_HQ
+    else:
+      codec_pre = CODEC_PRESET
+    options = ' --aencoder av_aac --loose-anamorphic --modulus 2 --encoder-preset %s --cfr '%(codec_pre)
     if not args.x:
       options += ' --encoder x264 --encoder-profile high --encoder-level 4.1'
     else:
-      options += ' --encoder x265 '
+      options += ' --encoder x265 --encoder-tune fastdecode '
     if args.f:
-      if self.info.video_resolution == 720:
-        options += ' --width 1920 '
-      quantizer = VIDEO_QUALITY_1080P
-      codec_maxrate = CODEC_VIDEO_MAXRATE_1080P
-      codec_bufsize = CODEC_VIDEO_BUFSIZE_1080P
+      #if self.info.video_resolution == 720:
+      options += ' --width 1920 '
+      #if self.info.video_resolution > 1100:
+      #  options += ' --width 1920 '
+      if args.hq:
+        quantizer = VIDEO_QUALITY_1080P_HQ
+        #codec_maxrate = CODEC_VIDEO_MAXRATE_1080P_HQ
+        #codec_bufsize = CODEC_VIDEO_BUFSIZE_1080P_HQ
+      else:
+        quantizer = VIDEO_QUALITY_1080P
+        #codec_maxrate = CODEC_VIDEO_MAXRATE_1080P
+        #codec_bufsize = CODEC_VIDEO_BUFSIZE_1080P
     else:
       options += ' --maxWidth 1280 '
-      quantizer = VIDEO_QUALITY_720P
-      codec_maxrate = CODEC_VIDEO_MAXRATE_720P
-      codec_bufsize = CODEC_VIDEO_BUFSIZE_720P
+      if args.hq:
+        quantizer = VIDEO_QUALITY_720P_HQ
+        #codec_maxrate = CODEC_VIDEO_MAXRATE_720P_HQ
+        #codec_bufsize = CODEC_VIDEO_BUFSIZE_720P_HQ
+      else:
+        quantizer = VIDEO_QUALITY_720P
+        #codec_maxrate = CODEC_VIDEO_MAXRATE_720P
+        #codec_bufsize = CODEC_VIDEO_BUFSIZE_720P
     if args.q:
       quantizer = int(args.q[0])
+    #else:
+    #  if args.x:
+    #    quantizer += 5
     #options += ' --encopts qpmin=4:cabac=0:ref=2:b-pyramid=none:weightb=0:weightp=0:vbv-maxrate=%s:vbv-bufsize=%s'%(CODEC_VIDEO_MAXRATE, CODEC_VIDEO_BUFSIZE)
     if args.cartoon and not args.x:
       encoder_tune = 'animation'
@@ -418,7 +447,7 @@ class MediaFile:
       encoder_tune = 'film'
     if not args.x:
       options += ' --encoder-tune %s '%(encoder_tune)
-    options += ' --encopts vbv-maxrate=%s:vbv-bufsize=%s'%(codec_maxrate, codec_bufsize)
+    ########## !!!!!!!!!! options += ' --encopts vbv-maxrate=%s:vbv-bufsize=%s'%(codec_maxrate, codec_bufsize)
     #if args.x:
     #  quantizer = quantizer + 1
     options += ' --quality %d '%(quantizer)
@@ -431,7 +460,11 @@ class MediaFile:
       #if args.d or args.v:
       #  audopts = ' --aencoder copy '
       #else:
-      audopts = ' --mixdown stereo -B 128 --gain %s --drc %s '%(GAIN, DRC)
+      if args.hq:
+        codec_audiorate = CODEC_AUDIO_BITRATE_HQ
+      else:
+        codec_audiorate = CODEC_AUDIO_BITRATE
+      audopts = ' --mixdown stereo -B %s --gain %s --drc %s '%(codec_audiorate, GAIN, DRC)
       if len(aud_list) > 0:
         audopts += ' --audio '
         for n in range(0, len(aud_list)):
