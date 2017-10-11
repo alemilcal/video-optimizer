@@ -3,7 +3,7 @@
 
 # Imports:
 
-import os, string, argparse, subprocess, distutils.spawn, sys, shutil, random
+import os, string, argparse, subprocess, distutils.spawn, sys, shutil, random, sys, time
 
 def generate_random_filename(prefix, suffix):
   b = True
@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.21.2'
+VERSION = 'v4.23.0'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv']
@@ -68,9 +68,11 @@ else:
 parser = argparse.ArgumentParser(description = 'Video transcoder/processor (%s)'%(VERSION))
 parser.add_argument('-a', nargs = 1, help = 'audio track (language chosen by default)')
 parser.add_argument('-b', action = 'store_true', help = 'Generate BIF files [BETA]')
+parser.add_argument('-d', action = 'store_true', help = 'Deinterlace video')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
 parser.add_argument('-f', action = 'store_true', help = 'Full HD output (1080p)')
 parser.add_argument('-g', action = 'store_true', help = 'Debug mode')
+parser.add_argument('-j', action = 'store_true', help = 'Japanese mode (choose English over Unknown language')
 parser.add_argument('-k', action = 'store_true', help = 'Matroska (MKV) output')
 #parser.add_argument('-l', action = 'store_true', help = 'Low resolution (max. 720p) output (original resolution by default)')
 parser.add_argument('-m', action = 'store_true', help = 'Skip adding metadata')
@@ -295,7 +297,7 @@ class MediaFile:
 
     # Media info extraction
     self.info = MediaInfo()
-    if self.extension == 'mkv' or self.extension == 'mp4':
+    if self.extension == 'mkv' or self.extension == 'mp4' or self.extension == 'avi':
       print '> Extracting file media info...'
       # Video with
       o = subprocess.check_output('%s --Inform="Video;%%Width%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
@@ -315,6 +317,7 @@ class MediaFile:
         audcnt = int(o)
       except:
         audcnt = 0
+      print '- Audio tracks found = %d'%(audcnt)
       # Audio CODECs
       o = subprocess.check_output('%s --Inform="General;%%Audio_Format_List%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
       #print '*'+o+'*'
@@ -324,12 +327,15 @@ class MediaFile:
         self.info.audio_codec.append(o[i])
       # Audio Languages
       o = subprocess.check_output('%s --Inform="General;%%Audio_Language_List%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
-      #print o
       o = o.rstrip()
       o = o.split(' / ')
+      #print '<%s>'%(o)
       for i in range(0, audcnt):
-        if o[i] == '':
-          o[i] = 'Unknown'
+        if len(o) >= i + 1:
+          if o[i] == '':
+            o[i] = 'Unknown'
+        else:
+          o.append('Unknown')
         self.info.audio_languages.append(o[i])
       #print self.info.audio_languages
       # Audio Channels
@@ -376,6 +382,7 @@ class MediaFile:
         o = o.rstrip()
         o = o.split(' / ')
         self.info.sub_languages = o
+        #print self.info.sub_languages
         # Subtitle formats
         o = subprocess.check_output('%s --Inform="General;%%Text_Format_List%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
         o = o.rstrip()
@@ -451,6 +458,8 @@ class MediaFile:
     #if args.x:
     #  quantizer = quantizer + 1
     options += ' --quality %d '%(quantizer)
+    if args.d:
+      options += ' --deinterlace '
     if args.noenc:
       #if args.d or args.v:
       #  audopts = ' -c:a copy '
@@ -811,10 +820,16 @@ def transcode_video_file(f):
   if track_audio_spa >= 0:
     track_audio_0 = track_audio_spa
   else:
-    if track_audio_eng >= 0:
-      track_audio_0 = track_audio_eng
+    if args.j:
+      if track_audio_eng >= 0:
+        track_audio_0 = track_audio_eng
+      else:
+        track_audio_0 = 0
     else:
-      track_audio_0 = 0
+      if track_audio_eng == 0:
+        track_audio_0 = 1
+      else:
+        track_audio_0 = 0
   if args.e:
     if track_audio_eng >= 0:
       track_audio_0 = track_audio_eng
@@ -853,6 +868,32 @@ def transcode_video_file(f):
     if v.extension == 'mkv' and args.tag and not args.k:
       c = '%s "%s" --edit info --set title="%s"'%(MKVPROPEDIT_BIN, f, v.movie_name)
       execute_command(c)
+    print ''
+    print '<<<<<<<<<< TRANSCODING PLANNING >>>>>>>>>>'
+    print ' - Input file: "%s"'%(v.input_file)
+    print ' - Output file: "%s"'%(v.output_file)
+    if args.f:
+      print ' - Video resolution: 1080p'
+    else:
+      print ' - Video resolution: 720p'
+    print ' - Audio language: %s'%(v.info.audio_languages[aud_list[0]])
+    if not input_sub_list:
+      print ' - Subtitle language: no subtitles found'
+    else:
+      print ' - Subtitle language: %s (Forced = %s)'%(v.info.sub_languages[input_sub_list[0]], v.info.sub_forced[input_sub_list[0]])
+      if len(input_sub_list) > 1:
+        print ' - Subtitle language #2: %s (Forced = %s)'%(v.info.sub_languages[input_sub_list[1]], v.info.sub_forced[input_sub_list[1]])
+    print '<<<<<<<<<< -------------------- >>>>>>>>>>'
+    print ''
+    if not args.z:
+      wait_counter = 10
+      while wait_counter > 0:
+        sys.stdout.write('\r* Starting transcoding in %02d s...'%(wait_counter))
+        sys.stdout.flush()
+        time.sleep(1)
+        wait_counter -= 1
+      #sys.stdout.write('\n')
+      #sys.stdout.flush()
     v.transcode(f, aud_list, sub_list)
     # Post-tagging if MKV output:
     if args.tag and args.k:
