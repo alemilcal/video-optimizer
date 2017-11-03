@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.23.0'
+VERSION = 'v4.24.2'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv']
@@ -35,7 +35,7 @@ VIDEO_QUALITY_1080P_HQ = 21
 #CODEC_VIDEO_BUFSIZE_1080P_HQ = 32000
 CODEC_AUDIO_BITRATE = 128
 CODEC_AUDIO_BITRATE_HQ = 192
-GAIN = '3.0'
+GAIN = '2.0'
 DRC = '2.0'
 SPANISH = 'Spanish'
 ENGLISH = 'English'
@@ -66,8 +66,9 @@ else:
 # Options:
 
 parser = argparse.ArgumentParser(description = 'Video transcoder/processor (%s)'%(VERSION))
-parser.add_argument('-a', nargs = 1, help = 'audio track (language chosen by default)')
+parser.add_argument('-a', nargs = 1, help = 'audio track -first track is 0- (language chosen by default)')
 parser.add_argument('-b', action = 'store_true', help = 'Generate BIF files [BETA]')
+parser.add_argument('-c', action = 'store_true', help = 'Cartoon mode (CODEC specific tune for cartoon movies)')
 parser.add_argument('-d', action = 'store_true', help = 'Deinterlace video')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
 parser.add_argument('-f', action = 'store_true', help = 'Full HD output (1080p)')
@@ -83,15 +84,17 @@ parser.add_argument('-r', action = 'store_true', help = 'Rebuild original folder
 #parser.add_argument('-s', nargs = 1, help = 'Subtitle track (spanish forced searched by default / 0 disables subs)')
 parser.add_argument('--nosub', action = 'store_true', help = 'No subtitles')
 parser.add_argument('-t', action = 'store_true', help = 'Test mode (only the first %d s of video are processed)'%(TEST_TIME))
-parser.add_argument('--aviout', action = 'store_true', help = 'AVI output (BETA)')
-parser.add_argument('--cartoon', action = 'store_true', help = 'Cartoon mode (CODEC specific tune for cartoon movies)')
+parser.add_argument('--tri', action = 'store_true', help = '3D input (conversion to 2D) [BETA]')
+parser.add_argument('--aviout', action = 'store_true', help = 'AVI output [BETA]')
 parser.add_argument('--hq', action = 'store_true', help = 'High Quality')
+parser.add_argument('--minitest', action = 'store_true', help = 'Mini test mode (only 10 seconds are processed)')
 parser.add_argument('--noenc', action = 'store_true', help = 'No video encoding (passthrough) [BETA]')
 parser.add_argument('--noren', action = 'store_true', help = 'No file renaming (instead of removing brackets) [BETA]')
 parser.add_argument('--subemb', action = 'store_true', help = 'Embed subtitle tracks into output video file')
 parser.add_argument('--subonly', action = 'store_true', help = 'Extract subtitle tracks only (no video transcoding)')
 parser.add_argument('--tag', action = 'store_true', help = 'Tag video file (more time required for copying original file)')
 parser.add_argument('--tagonly', action = 'store_true', help = 'Tag file name only (no transcoding) [BETA]')
+parser.add_argument('--upload', action = 'store_true', help = 'Upload script to GITHUB [BETA]')
 parser.add_argument('-w', action = 'store_true', help = 'Overwrite existing files (skip by default)')
 parser.add_argument('-x', action = 'store_true', help = 'X265 codec [BETA]')
 parser.add_argument('-z', action = 'store_true', help = 'dry run')
@@ -104,6 +107,10 @@ HANDBRAKE_TEST_OPTS = ''
 if args.t:
   FFMPEG_TEST_OPTS = ' -t %d '%(TEST_TIME)
   HANDBRAKE_TEST_OPTS = ' --stop-at duration:%s '%(TEST_TIME)
+else:
+  if args.minitest:
+    FFMPEG_TEST_OPTS = ' -ss 00:02:00 -t 10 '
+    HANDBRAKE_TEST_OPTS = ' --start-at duration:120 --stop-at duration:10 '
 if args.w:
   FFMPEG_OVERWRITE_OPTS = ' -y '
 
@@ -297,7 +304,7 @@ class MediaFile:
 
     # Media info extraction
     self.info = MediaInfo()
-    if self.extension == 'mkv' or self.extension == 'mp4' or self.extension == 'avi':
+    if self.extension == 'mkv' or self.extension == 'mp4' or self.extension == 'avi' or self.extension == 'wmv':
       print '> Extracting file media info...'
       # Video with
       o = subprocess.check_output('%s --Inform="Video;%%Width%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
@@ -442,13 +449,17 @@ class MediaFile:
         quantizer = VIDEO_QUALITY_720P
         #codec_maxrate = CODEC_VIDEO_MAXRATE_720P
         #codec_bufsize = CODEC_VIDEO_BUFSIZE_720P
+    if args.tri:
+      options += ' --crop 0:%d:0:0 --custom-anamorphic --width 1280 --height %d --pixel-aspect 1000:%d '%(self.info.video_resolution/2, self.info.video_resolution/2,720000.0/(self.info.video_resolution/2.0))
+    else:
+      options += ' --crop 0:0:0:0 '
     if args.q:
       quantizer = int(args.q[0])
     #else:
     #  if args.x:
     #    quantizer += 5
     #options += ' --encopts qpmin=4:cabac=0:ref=2:b-pyramid=none:weightb=0:weightp=0:vbv-maxrate=%s:vbv-bufsize=%s'%(CODEC_VIDEO_MAXRATE, CODEC_VIDEO_BUFSIZE)
-    if args.cartoon and not args.x:
+    if args.c and not args.x:
       encoder_tune = 'animation'
     else:
       encoder_tune = 'film'
@@ -876,7 +887,10 @@ def transcode_video_file(f):
       print ' - Video resolution: 1080p'
     else:
       print ' - Video resolution: 720p'
-    print ' - Audio language: %s'%(v.info.audio_languages[aud_list[0]])
+    if v.info.audio_languages:
+      print ' - Audio language: %s'%(v.info.audio_languages[aud_list[0]])
+    else:
+      print ' - Audio language: Unknown'
     if not input_sub_list:
       print ' - Subtitle language: no subtitles found'
     else:
@@ -971,8 +985,12 @@ verify_software(NICE_BIN, True)
 #verify_software(SED_BIN, True)
 verify_software(BIFTOOL_BIN, False)
 
-if args.input:
-  for f in args.input:
-    process_file(f)
+if args.upload:
+  c = 'git commit -a -m "%s" ; git push'%(VERSION)
+  execute_command(c)
 else:
-  process_directory('.')
+  if args.input:
+    for f in args.input:
+      process_file(f)
+  else:
+    process_directory('.')
