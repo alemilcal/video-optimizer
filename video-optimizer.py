@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.27.2'
+VERSION = 'v4.27.3'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv']
@@ -515,14 +515,12 @@ class MediaFile:
         c = '%s %s %s -i "%s" -map 0:v:0 -map 0:a:0 -s 640x360 -vtag "xvid" -q:v 4 -b:a 128k -ar 48000 "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, FFMPEG_OVERWRITE_OPTS, input_file, self.output_file)
       else: # MP4/MKV output
         if args.hardsub:
-          c = '{} {} {} -i "{}" -map 0:v -c:v copy -map 0:a -c:a copy -map 0:s:{} -c:s ass "{}"'.format(FFMPEG_BIN, FFMPEG_TEST_OPTS, FFMPEG_OVERWRITE_OPTS, input_file, sub_list[0], TEMP_REMUX_FILE)
-          execute_command(c)
+          #c = '{} {} {} -i "{}" -map 0:v -c:v copy -map 0:a -c:a copy -map 0:s:{} -c:s ass "{}"'.format(FFMPEG_BIN, FFMPEG_TEST_OPTS, FFMPEG_OVERWRITE_OPTS, input_file, sub_list[0], TEMP_REMUX_FILE)
+          #execute_command(c)
           if not args.hardsubforcefirst:
             subopts += ' --subtitle-forced '
           subopts += ' --subtitle-burned '
-          c = '%s %s -i "%s" --optimize --markers %s %s %s -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, subopts, self.output_file)
-        else:
-          c = '%s %s -i "%s" --optimize --markers %s %s %s -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, subopts, self.output_file)
+        c = '%s %s -i "%s" --optimize --markers %s %s %s -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, subopts, self.output_file)
     execute_command(c)
 
   def transcode_audio_track(self, audio_track, sub_tracks, output_file):
