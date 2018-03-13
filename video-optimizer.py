@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.27.3'
+VERSION = 'v4.27.4'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv']
@@ -904,9 +904,9 @@ def transcode_video_file(f):
     subtrackselect = int(args.s[0])
     if subtrackselect >= len(v.info.sub_languages):
       subtrackselect = len(v.info.sub_languages) - 1
-      print '* Warning: forced subtitle track {} not found. Falling to track {}.'.format(int(args.s[0]), subtrackselect)
+      print '* Warning: user selected subtitle track {} not found. Falling to track {}.'.format(int(args.s[0]), subtrackselect)
     else:
-      print '* Forced subtitle track {}'.format(subtrackselect)
+      print '* User selected subtitle track {}'.format(subtrackselect)
     input_sub_list = [subtrackselect]
   else:
     input_sub_list = []
@@ -928,10 +928,12 @@ def transcode_video_file(f):
   #aud_list.sort()
   #input_sub_list.sort()
 
-  if args.subemb or args.hardsub:
+  #print input_sub_list #####
+  sub_list = []
+  if args.subemb:
     sub_list = input_sub_list
-  else:
-    sub_list = []
+  if args.hardsub:
+    sub_list.append(input_sub_list[0])
 
   audio_track_files = []
 
@@ -966,6 +968,8 @@ def transcode_video_file(f):
       while subcnt < len(input_sub_list):
         print ' - Subtitle language {}: {} (Forced = {}){}'.format(subcnt + 1, v.info.sub_languages[input_sub_list[subcnt]], v.info.sub_forced[input_sub_list[subcnt]], print_hardsub)
         subcnt = subcnt + 1
+        if args.hardsub:
+          break
     print '<<<<<<<<<< -------------------- >>>>>>>>>>'
     print ''
     if not args.z:
