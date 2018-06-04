@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.27.4'
+VERSION = 'v4.27.9'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv']
@@ -74,7 +74,8 @@ parser.add_argument('-d', action = 'store_true', help = 'Deinterlace video')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
 parser.add_argument('-f', action = 'store_true', help = 'Full HD output (1080p)')
 parser.add_argument('-g', action = 'store_true', help = 'Debug mode')
-parser.add_argument('-j', action = 'store_true', help = 'Japanese mode (choose English over Unknown language)')
+parser.add_argument('--vose', action = 'store_true', help = 'Treat subtitle as forced')
+parser.add_argument('-j', action = 'store_true', help = 'Japanese mode [BETA]')
 parser.add_argument('-k', action = 'store_true', help = 'Matroska (MKV) output')
 #parser.add_argument('-l', action = 'store_true', help = 'Low resolution (max. 720p) output (original resolution by default)')
 parser.add_argument('-m', action = 'store_true', help = 'Skip adding metadata')
@@ -88,7 +89,7 @@ parser.add_argument('-t', action = 'store_true', help = 'Test mode (only the fir
 parser.add_argument('--tri', action = 'store_true', help = '3D input (conversion to 2D) [BETA]')
 parser.add_argument('--aviout', action = 'store_true', help = 'AVI output [BETA]')
 parser.add_argument('--hardsub', action = 'store_true', help = 'Burn subtitles (MP4/MKV support only) [BETA]')
-parser.add_argument('--hardsubforcefirst', action = 'store_true', help = 'Use with --hardsub. Consider first sub track as forced [BETA]')
+#parser.add_argument('--hardsubforcefirst', action = 'store_true', help = 'Use with --hardsub. Consider first sub track as forced [BETA]')
 parser.add_argument('--hq', action = 'store_true', help = 'High Quality')
 parser.add_argument('--minitest', action = 'store_true', help = 'Mini test mode (only 10 seconds are processed)')
 parser.add_argument('--multiaudio', action = 'store_true', help = 'English + Spanish + Japanese/Unknown audio/subtitles')
@@ -218,6 +219,11 @@ class MediaFile:
       self.base_input_filename = input_path[0]
     self.extension = r[1].lower()
     self.extension = self.extension[1:]
+    r2 = os.path.splitext(self.base_input_filename)
+    pre_ext = r2[1].lower()
+    pre_ext = pre_ext[1:]
+    if pre_ext == '4k':
+      self.base_input_filename = self.base_input_filename[0:-3]
     print '- Input path: "%s"'%(self.input_path)
     print '- Base input file name: "%s"'%(self.base_input_filename)
     print '- Extension: "%s"'%(self.extension)
@@ -506,7 +512,7 @@ class MediaFile:
     if len(sub_list) > 0:
       subopts += ' --subtitle '
       for n in range(0, len(sub_list)):
-        subopts += '%d,'%(n + 1)
+        subopts += '%d,'%(sub_list[n] + 1)
       subopts = subopts[:-1]
     if args.noenc:
       c = '%s %s %s -i "%s" -map 0:v:0 -c:v copy -map 0:a %s -map 0:s -c:s copy "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, FFMPEG_OVERWRITE_OPTS, input_file, audopts, self.output_file)
@@ -514,12 +520,14 @@ class MediaFile:
       if args.aviout: # AVI output
         c = '%s %s %s -i "%s" -map 0:v:0 -map 0:a:0 -s 640x360 -vtag "xvid" -q:v 4 -b:a 128k -ar 48000 "%s"'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, FFMPEG_OVERWRITE_OPTS, input_file, self.output_file)
       else: # MP4/MKV output
-        if args.hardsub:
+        if args.hardsub and sub_list:
+          if self.info.sub_forced[sub_list[0]]:
           #c = '{} {} {} -i "{}" -map 0:v -c:v copy -map 0:a -c:a copy -map 0:s:{} -c:s ass "{}"'.format(FFMPEG_BIN, FFMPEG_TEST_OPTS, FFMPEG_OVERWRITE_OPTS, input_file, sub_list[0], TEMP_REMUX_FILE)
           #execute_command(c)
-          if not args.hardsubforcefirst:
-            subopts += ' --subtitle-forced '
-          subopts += ' --subtitle-burned '
+          #if not args.hardsubforcefirst:
+          #  subopts += ' --subtitle-forced '
+            subopts += ' --subtitle-burned '
+            #print '* Warning: subtitles are going to be BURNED!'
         c = '%s %s -i "%s" --optimize --markers %s %s %s -o "%s"'%(HANDBRAKECLI_BIN, HANDBRAKE_TEST_OPTS, input_file, options, audopts, subopts, self.output_file)
     execute_command(c)
 
@@ -910,30 +918,45 @@ def transcode_video_file(f):
     input_sub_list = [subtrackselect]
   else:
     input_sub_list = []
-    if args.e or args.multiaudio or args.j:
-      if track_sub_eng_f >= 0:
-        input_sub_list.append(track_sub_eng_f)
-      if track_sub_eng_n >= 0:
-        input_sub_list.append(track_sub_eng_n)
-    if track_sub_spa_f >= 0:
-      input_sub_list.append(track_sub_spa_f)
-    if track_sub_spa_n >= 0:
-      input_sub_list.append(track_sub_spa_n)
-    if args.multiaudio:
-      if track_sub_jap_f >= 0:
-        input_sub_list.append(track_sub_jap_f)
-      if track_sub_jap_n >= 0:
-        input_sub_list.append(track_sub_jap_n)
+    if args.hardsub:
+      if args.vose:
+        if track_sub_spa_n >= 0:
+          input_sub_list.append(track_sub_spa_n)
+        else:
+          if track_sub_spa_f >= 0:
+            input_sub_list.append(track_sub_spa_f)
+          else:
+            if track_sub_eng_n >= 0:
+              input_sub_list.append(track_sub_eng_n)
+            else:
+              if track_sub_eng_f >= 0:
+                input_sub_list.append(track_sub_eng_f)
+      else:
+        if track_sub_spa_f >= 0:
+          input_sub_list.append(track_sub_spa_f)
+    else:
+      if args.e or args.multiaudio:
+        if track_sub_eng_f >= 0:
+          input_sub_list.append(track_sub_eng_f)
+        if track_sub_eng_n >= 0:
+          input_sub_list.append(track_sub_eng_n)
+      if track_sub_spa_f >= 0:
+        input_sub_list.append(track_sub_spa_f)
+      if track_sub_spa_n >= 0:
+        input_sub_list.append(track_sub_spa_n)
+      if args.multiaudio:
+        if track_sub_jap_f >= 0:
+          input_sub_list.append(track_sub_jap_f)
+        if track_sub_jap_n >= 0:
+          input_sub_list.append(track_sub_jap_n)
 
   #aud_list.sort()
   #input_sub_list.sort()
 
   #print input_sub_list #####
   sub_list = []
-  if args.subemb:
+  if args.subemb or args.hardsub:
     sub_list = input_sub_list
-  if args.hardsub:
-    sub_list.append(input_sub_list[0])
 
   audio_track_files = []
 
@@ -950,10 +973,6 @@ def transcode_video_file(f):
     else:
       print ' - Video resolution: 720p'
     if v.info.audio_languages:
-      if args.hardsub:
-        print_hardsub = ' (Burned = True)'
-      else:
-        print_hardsub = ''
       print ' - Audio language 1: %s'%(v.info.audio_languages[aud_list[0]])
       if len(aud_list) > 1:
         print ' - Audio language 2: %s'%(v.info.audio_languages[aud_list[1]])
@@ -962,14 +981,15 @@ def transcode_video_file(f):
     else:
       print ' - Audio language: Unknown'
     if not input_sub_list:
-      print ' - Subtitle language: no subtitles found'
+      print ' - Subtitle language: no suitable subtitles found'
     else:
       subcnt = 0
       while subcnt < len(input_sub_list):
-        print ' - Subtitle language {}: {} (Forced = {}){}'.format(subcnt + 1, v.info.sub_languages[input_sub_list[subcnt]], v.info.sub_forced[input_sub_list[subcnt]], print_hardsub)
+        print ' - Subtitle language {}: {} (Forced = {})'.format(subcnt + 1, v.info.sub_languages[input_sub_list[subcnt]], v.info.sub_forced[input_sub_list[subcnt]])
         subcnt = subcnt + 1
-        if args.hardsub:
-          break
+      if args.hardsub:
+        if v.info.sub_forced[input_sub_list[0]]:
+          print ' - First subtitle track will be BURNED!'
     print '<<<<<<<<<< -------------------- >>>>>>>>>>'
     print ''
     if not args.z:
