@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.27.9'
+VERSION = 'v4.27.10'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv']
@@ -129,7 +129,7 @@ def language_code(name):
       return 'eng'
     else:
       if name == JAPANESE:
-        return 'jap'
+        return 'jpn'
       else:
         return 'unk'
 
