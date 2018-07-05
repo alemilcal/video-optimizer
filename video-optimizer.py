@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.28.1'
+VERSION = 'v4.28.2'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv']
@@ -364,7 +364,11 @@ class MediaFile:
       o = subprocess.check_output('%s --Inform="Audio;%%Channel(s)%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
       #print '*'+o+'*'
       for i in range(0, audcnt):
-        self.info.audio_channels.append(int(o[0:1]))
+        try:
+          channels_amount = int(o[0:1])
+        except:
+          channels_amount = 0
+        self.info.audio_channels.append(channels_amount)
         if o[1:4] == ' / ':
           o = o[5:]
         else:
