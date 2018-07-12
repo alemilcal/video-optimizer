@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.28.2'
+VERSION = 'v4.28.3'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv']
@@ -120,6 +120,21 @@ if args.w:
   FFMPEG_OVERWRITE_OPTS = ' -y '
 
 # Auxiliar functions:
+
+def remove_brackets(s):
+  #print 's="{}"'.format(s)
+  ss = s
+  b = 0
+  for i in range(0, len(s)):
+    if s[i] == '[':
+      b = 1
+      x = i
+    if b == 1 and s[i] == ']':
+      #print i
+      ss = remove_brackets(s[:x] + s[i + 1:])
+      break
+  #print 'ss="{}"'.format(ss)
+  return ss
 
 def language_code(name):
   if name == SPANISH:
@@ -245,7 +260,10 @@ class MediaFile:
     if args.noren:
       self.base_output_filename = self.base_input_filename
     else:
-      self.base_output_filename = self.base_input_filename.rsplit('[')[0]
+      #self.base_output_filename = self.base_input_filename.rsplit('[')[0]
+      #print self.base_input_filename
+      self.base_output_filename = remove_brackets(self.base_input_filename)
+      self.base_output_filename = self.base_output_filename.lstrip()
       self.base_output_filename = self.base_output_filename.rstrip()
       self.base_output_filename = self.base_output_filename.replace('á', 'a')
       self.base_output_filename = self.base_output_filename.replace('é', 'e')
