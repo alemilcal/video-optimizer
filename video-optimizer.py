@@ -14,10 +14,10 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.28.3'
+VERSION = 'v4.32.0'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
-VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv']
+VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv', 'webm']
 TEST_TIME = 300 # 300 seg = 5 min
 CODEC_PRESET = 'fast'
 CODEC_PRESET_HQ = 'medium'
@@ -74,35 +74,38 @@ parser.add_argument('-d', action = 'store_true', help = 'Deinterlace video')
 parser.add_argument('-e', action = 'store_true', help = 'English + Spanish (Dual audio/subtitles)')
 parser.add_argument('-f', action = 'store_true', help = 'Full HD output (1080p)')
 parser.add_argument('-g', action = 'store_true', help = 'Debug mode')
-parser.add_argument('--vose', action = 'store_true', help = 'Treat subtitle as forced')
+parser.add_argument('-i', action = 'store_true', help = 'iPhone 5 resolution')
 parser.add_argument('-j', action = 'store_true', help = 'Japanese mode [BETA]')
 parser.add_argument('-k', action = 'store_true', help = 'Matroska (MKV) output')
-#parser.add_argument('-l', action = 'store_true', help = 'Low resolution (max. 720p) output (original resolution by default)')
 parser.add_argument('-m', action = 'store_true', help = 'Skip adding metadata')
 parser.add_argument('-o', nargs = 1, help = 'Output path')
 parser.add_argument('-p', action = 'store_true', help = 'Prioritize default audio tracks (instead looking for adequate amount of channels)')
 parser.add_argument('-q', nargs = 1, help = 'Quantizer factor')
 parser.add_argument('-r', action = 'store_true', help = 'Rebuild original folder structure')
 parser.add_argument('-s', nargs = 1, help = 'Subtitle track -first track is 0- (spanish forced searched by default)')
-parser.add_argument('--nosub', action = 'store_true', help = 'No subtitles')
 parser.add_argument('-t', action = 'store_true', help = 'Test mode (only the first %d s of video are processed)'%(TEST_TIME))
-parser.add_argument('--tri', action = 'store_true', help = '3D input (conversion to 2D) [BETA]')
+parser.add_argument('-w', action = 'store_true', help = 'Overwrite existing files (skip by default)')
+parser.add_argument('-x', action = 'store_true', help = 'X265 codec [BETA]')
+parser.add_argument('-z', action = 'store_true', help = 'dry run')
+parser.add_argument('--abr', nargs = 1, help = 'Audio bit rate')
+parser.add_argument('--audiocopy', action = 'store_true', help = 'Copy audio track (passthrough) [BETA]')
 parser.add_argument('--aviout', action = 'store_true', help = 'AVI output [BETA]')
+parser.add_argument('--fps', nargs = 1, help = 'Frames per second (original FPS by default)')
 parser.add_argument('--hardsub', action = 'store_true', help = 'Burn subtitles (MP4/MKV support only) [BETA]')
-#parser.add_argument('--hardsubforcefirst', action = 'store_true', help = 'Use with --hardsub. Consider first sub track as forced [BETA]')
 parser.add_argument('--hq', action = 'store_true', help = 'High Quality')
 parser.add_argument('--minitest', action = 'store_true', help = 'Mini test mode (only 10 seconds are processed)')
 parser.add_argument('--multiaudio', action = 'store_true', help = 'English + Spanish + Japanese/Unknown audio/subtitles')
+parser.add_argument('--mvr', nargs = 1, help = 'Maximum video resolution (width')
 parser.add_argument('--noenc', action = 'store_true', help = 'No video encoding (passthrough) [BETA]')
 parser.add_argument('--noren', action = 'store_true', help = 'No file renaming (instead of removing brackets) [BETA]')
+parser.add_argument('--nosub', action = 'store_true', help = 'No subtitles')
 parser.add_argument('--subemb', action = 'store_true', help = 'Embed subtitle tracks into output video file')
 parser.add_argument('--subonly', action = 'store_true', help = 'Extract subtitle tracks only (no video transcoding)')
 parser.add_argument('--tag', action = 'store_true', help = 'Tag video file (more time required for copying original file)')
 parser.add_argument('--tagonly', action = 'store_true', help = 'Tag file name only (no transcoding) [BETA]')
+parser.add_argument('--tri', action = 'store_true', help = '3D input (conversion to 2D) [BETA]')
 parser.add_argument('--upload', action = 'store_true', help = 'Upload script to GITHUB [BETA]')
-parser.add_argument('-w', action = 'store_true', help = 'Overwrite existing files (skip by default)')
-parser.add_argument('-x', action = 'store_true', help = 'X265 codec [BETA]')
-parser.add_argument('-z', action = 'store_true', help = 'dry run')
+parser.add_argument('--vose', action = 'store_true', help = 'Treat subtitle as forced')
 parser.add_argument('input', nargs='*', help = 'input file(s) (if missing process all video files)')
 args = parser.parse_args()
 
@@ -287,16 +290,18 @@ class MediaFile:
       filename_info = ''
       if args.f:
         filename_info += '1080p '
+      if args.i:
+        filename_info += 'iPhone '
       if args.hq:
         filename_info += 'HQ '
       if args.x:
         filename_info += 'HEVC '
       if args.q:
-        filename_info += 'Q%s'%(args.q[0])
+        filename_info += 'Q%s '%(args.q[0])
       if args.noren:
-        filename_info += 'OV'
+        filename_info += 'OV '
       if args.hardsub:
-        filename_info += 'HardSub'
+        filename_info += 'HardSub '
       if APPEND_VERSION_TO_FILENAME:
         filename_info += VERSION
       if filename_info != '':
@@ -458,11 +463,19 @@ class MediaFile:
       codec_pre = CODEC_PRESET_HQ
     else:
       codec_pre = CODEC_PRESET
-    options = ' --aencoder av_aac --loose-anamorphic --modulus 2 --encoder-preset %s --cfr '%(codec_pre)
+    #options = ' --aencoder av_aac --loose-anamorphic --modulus 2 --encoder-preset %s --cfr '%(codec_pre)
+    options = ''
+    if args.audiocopy:
+      options += ' --aencoder copy:ac3 '
+    else:
+      options += ' --aencoder av_aac '
+    options += ' --pixel-aspect 1:1 --encoder-preset %s --cfr '%(codec_pre)
     if not args.x:
       options += ' --encoder x264 --encoder-profile high --encoder-level 4.1'
     else:
       options += ' --encoder x265 --encoder-tune fastdecode '
+    if args.fps:
+      options += ' -r {} '.format(args.fps[0])
     if args.f:
       #if self.info.video_resolution == 720:
       options += ' --width 1920 '
@@ -477,7 +490,13 @@ class MediaFile:
         #codec_maxrate = CODEC_VIDEO_MAXRATE_1080P
         #codec_bufsize = CODEC_VIDEO_BUFSIZE_1080P
     else:
-      options += ' --maxWidth 1280 '
+      if args.mvr:
+        options += ' --maxWidth {} '.format(args.mvr[0])
+      else:
+        if args.i:
+          options += ' --maxWidth 1136 '
+        else:
+          options += ' --maxWidth 1280 '
       if args.hq:
         quantizer = VIDEO_QUALITY_720P_HQ
         #codec_maxrate = CODEC_VIDEO_MAXRATE_720P_HQ
@@ -521,7 +540,11 @@ class MediaFile:
         codec_audiorate = CODEC_AUDIO_BITRATE_HQ
       else:
         codec_audiorate = CODEC_AUDIO_BITRATE
-      audopts = ' --mixdown stereo -B %s --gain %s --drc %s '%(codec_audiorate, GAIN, DRC)
+      if args.abr:
+        codec_audiorate = args.abr[0]
+      audopts = ''
+      if not args.audiocopy:
+        audopts += ' --mixdown stereo -B %s --gain %s --drc %s '%(codec_audiorate, GAIN, DRC)
       if len(aud_list) > 0:
         audopts += ' --audio '
         for n in range(0, len(aud_list)):
@@ -993,7 +1016,13 @@ def transcode_video_file(f):
     if args.f:
       print ' - Video resolution: 1080p'
     else:
-      print ' - Video resolution: 720p'
+      if args.mvr:
+        print ' - Video resolution: {}p'.format(int(round((float(args.mvr[0])*9.0)/16.0)))
+      else:
+        if args.i:
+          print ' - Video resolution: 640p (iPhone 5)'
+        else:
+          print ' - Video resolution: 720p'
     if v.info.audio_languages:
       print ' - Audio language 1: %s'%(v.info.audio_languages[aud_list[0]])
       if len(aud_list) > 1:
