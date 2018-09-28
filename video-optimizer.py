@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.32.0'
+VERSION = 'v4.32.1'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv', 'webm']
@@ -33,8 +33,8 @@ VIDEO_QUALITY_1080P_HQ = 21
 #CODEC_VIDEO_BUFSIZE_1080P = 16000
 #CODEC_VIDEO_MAXRATE_1080P_HQ = 16000
 #CODEC_VIDEO_BUFSIZE_1080P_HQ = 32000
-CODEC_AUDIO_BITRATE = 128
-CODEC_AUDIO_BITRATE_HQ = 192
+CODEC_AUDIO_BITRATE = 192
+CODEC_AUDIO_BITRATE_HQ = 256
 GAIN = '2.0'
 DRC = '2.0'
 SPANISH = 'Spanish'
@@ -466,7 +466,7 @@ class MediaFile:
     #options = ' --aencoder av_aac --loose-anamorphic --modulus 2 --encoder-preset %s --cfr '%(codec_pre)
     options = ''
     if args.audiocopy:
-      options += ' --aencoder copy:ac3 '
+      options += ' --aencoder copy '
     else:
       options += ' --aencoder av_aac '
     options += ' --pixel-aspect 1:1 --encoder-preset %s --cfr '%(codec_pre)
