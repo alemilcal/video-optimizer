@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.34.0'
+VERSION = 'v4.34.2'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv', 'webm']
@@ -33,8 +33,8 @@ VIDEO_QUALITY_1080P_HQ = 21
 #CODEC_VIDEO_BUFSIZE_1080P = 16000
 #CODEC_VIDEO_MAXRATE_1080P_HQ = 16000
 #CODEC_VIDEO_BUFSIZE_1080P_HQ = 32000
-CODEC_AUDIO_BITRATE = 128
-CODEC_AUDIO_BITRATE_HQ = 196
+CODEC_AUDIO_BITRATE = 256
+CODEC_AUDIO_BITRATE_HQ = 320
 GAIN = '2.0'
 DRC = '2.0'
 SPANISH = 'Spanish'
@@ -551,7 +551,7 @@ class MediaFile:
       audopts = ''
       if not args.audiocopy:
         if args.surround:
-          audopts += ' --mixdown 5point1 -B %s '%(int(codec_audiorate) * 3)
+          audopts += ' --mixdown 5point1 -B %s '%(int(codec_audiorate/2) * 3)
         else:
           audopts += ' --mixdown stereo -B %s --gain %s --drc %s '%(codec_audiorate, GAIN, DRC)
       if len(aud_list) > 0:
