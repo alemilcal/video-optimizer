@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.34.2'
+VERSION = 'v4.35.0'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv', 'webm']
@@ -88,7 +88,7 @@ parser.add_argument('-w', action = 'store_true', help = 'Overwrite existing file
 parser.add_argument('-x', action = 'store_true', help = 'X265 codec [BETA]')
 parser.add_argument('-z', action = 'store_true', help = 'dry run')
 parser.add_argument('--abr', nargs = 1, help = 'Audio bit rate')
-parser.add_argument('--anamorphic', action = 'store_true', help = 'Anamorphic video (old HandBrake compatibility) [BETA]')
+parser.add_argument('--anamorphic', action = 'store_true', help = 'Anamorphic video (selected automatically for 4K input video) [BETA]')
 parser.add_argument('--audiocopy', action = 'store_true', help = 'Copy audio track (passthrough) [BETA]')
 parser.add_argument('--aviout', action = 'store_true', help = 'AVI output [BETA]')
 parser.add_argument('--fps', nargs = 1, help = 'Frames per second (original FPS by default)')
@@ -353,10 +353,13 @@ class MediaFile:
         self.info.video_width = int(o)
       except:
         self.info.video_width = 0
-      if self.info.video_width > 1500:
-        self.info.video_resolution = 1080
+      if self.info.video_width > 3000:
+        self.info.video_resolution = 2160
       else:
-        self.info.video_resolution = 720
+        if self.info.video_width > 1500:
+          self.info.video_resolution = 1080
+        else:
+          self.info.video_resolution = 720
       # Audio tracks count
       o = subprocess.check_output('%s --Inform="General;%%AudioCount%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
       o = o.rstrip()
@@ -471,7 +474,7 @@ class MediaFile:
       options += ' --aencoder copy '
     else:
       options += ' --aencoder av_aac '
-    if args.anamorphic:
+    if args.anamorphic or self.info.video_resolution == 2160:
       options += ' --loose-anamorphic --modulus 2 '
     else:
       options += ' --pixel-aspect 1:1 '
