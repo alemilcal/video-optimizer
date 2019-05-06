@@ -14,7 +14,7 @@ def generate_random_filename(prefix, suffix):
 
 # Constants:
 
-VERSION = 'v4.35.0'
+VERSION = 'v4.36.3'
 #APPEND_VERSION_TO_FILENAME = True
 APPEND_VERSION_TO_FILENAME = False
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv', 'webm']
@@ -33,8 +33,8 @@ VIDEO_QUALITY_1080P_HQ = 21
 #CODEC_VIDEO_BUFSIZE_1080P = 16000
 #CODEC_VIDEO_MAXRATE_1080P_HQ = 16000
 #CODEC_VIDEO_BUFSIZE_1080P_HQ = 32000
-CODEC_AUDIO_BITRATE = 256
-CODEC_AUDIO_BITRATE_HQ = 320
+CODEC_AUDIO_BITRATE = 128
+CODEC_AUDIO_BITRATE_HQ = 256
 GAIN = '2.0'
 DRC = '2.0'
 SPANISH = 'Spanish'
@@ -103,7 +103,7 @@ parser.add_argument('--nosub', action = 'store_true', help = 'No subtitles')
 parser.add_argument('--subemb', action = 'store_true', help = 'Embed subtitle tracks into output video file')
 parser.add_argument('--subonly', action = 'store_true', help = 'Extract subtitle tracks only (no video transcoding)')
 parser.add_argument('--surround', action = 'store_true', help = 'Surround audio (5.1) [BETA]')
-parser.add_argument('--tag', action = 'store_true', help = 'Tag video file (more time required for copying original file)')
+parser.add_argument('--tag', action = 'store_true', help = 'Tag video file (modifies original file header)')
 parser.add_argument('--tagonly', action = 'store_true', help = 'Tag file name only (no transcoding) [BETA]')
 parser.add_argument('--tri', action = 'store_true', help = '3D input (conversion to 2D) [BETA]')
 parser.add_argument('--upload', action = 'store_true', help = 'Upload script to GITHUB [BETA]')
@@ -290,6 +290,7 @@ class MediaFile:
       self.base_output_filename = self.base_output_filename.replace('¡', '')
       self.base_output_filename = self.base_output_filename.replace('!', '')
       filename_info = ''
+      filename_info += 'FDKAAC '
       if args.f:
         filename_info += '1080p '
       if args.i:
@@ -473,11 +474,12 @@ class MediaFile:
     if args.audiocopy:
       options += ' --aencoder copy '
     else:
-      options += ' --aencoder av_aac '
-    if args.anamorphic or self.info.video_resolution == 2160:
-      options += ' --loose-anamorphic --modulus 2 '
-    else:
-      options += ' --pixel-aspect 1:1 '
+      options += '' #' --aencoder av_aac '
+    #if args.anamorphic or self.info.video_resolution == 2160:
+    #  options += ' --loose-anamorphic --modulus 2 '
+    #else:
+    #  options += ' --pixel-aspect 1:1 '
+    options += ' --loose-anamorphic --modulus 2 '
     options += ' --encoder-preset %s --cfr '%(codec_pre)
     if not args.x:
       options += ' --encoder x264 --encoder-profile high --encoder-level 4.1'
@@ -556,7 +558,8 @@ class MediaFile:
         if args.surround:
           audopts += ' --mixdown 5point1 -B %s '%(int(codec_audiorate/2) * 3)
         else:
-          audopts += ' --mixdown stereo -B %s --gain %s --drc %s '%(codec_audiorate, GAIN, DRC)
+          #audopts += ' --mixdown stereo -B %s --gain %s --drc %s '%(codec_audiorate, GAIN, DRC)
+          audopts += ' --mixdown stereo -B %s '%(codec_audiorate)
       if len(aud_list) > 0:
         audopts += ' --audio '
         for n in range(0, len(aud_list)):
@@ -1146,7 +1149,11 @@ verify_software(NICE_BIN, True)
 verify_software(BIFTOOL_BIN, False)
 
 if args.upload:
-  c = 'cd /home/ale/bin/video-optimizer ; git commit -a -m "%s" ; git push'%(VERSION)
+  try:
+    os.chdir('/mnt/xtra/ark/bin/video-optimizer')
+  except:
+    print 'Error changing to source directory.'
+  c = 'git commit -a -m "%s" ; git push'%(VERSION)
   execute_command(c)
 else:
   if args.input:
