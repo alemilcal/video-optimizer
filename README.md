@@ -4,10 +4,8 @@ Python script that transcodifies a video file generating a MP4/MKV optimized ver
 
 Dependencies:
 
-  * FFmpeg
   * HandBrakeCLI
   * MediaInfo
   * MKVPropEdit
 
-Compatibility: Linux & Windows
-
+Compatibility: Linux only
