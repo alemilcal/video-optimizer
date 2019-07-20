@@ -7,14 +7,14 @@ import os, string, argparse, subprocess, distutils.spawn, sys, shutil, random, s
 
 # Constants:
 
-VERSION = 'v5.0.0b'
+VERSION = 'v5.0.3'
 SELF_PATH = '/mnt/xtra/ark/bin/video-optimizer'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv', 'webm']
 TEST_TIME = 300
 #CODEC_PRESET_X264 = 'fast'
 CODEC_PRESET_X264 = 'veryfast'
 CODEC_PRESET_X265 = 'medium'
-VIDEO_QUALITY_X264 = 16
+VIDEO_QUALITY_X264 = 21
 VIDEO_QUALITY_X264_LQ = 23
 VIDEO_QUALITY_X265 = -1
 CODEC_AUDIO_BITRATE_AAC = 128
@@ -45,8 +45,8 @@ parser.add_argument('-w', action = 'store_true', help = 'Overwrite existing file
 parser.add_argument('-x', action = 'store_true', help = 'X265 codec')
 parser.add_argument('-z', action = 'store_true', help = 'dry run')
 parser.add_argument('--abr', nargs = 1, help = 'Audio bit rate')
-parser.add_argument('--ac3', action = 'store_true', help = 'AC3 audio')
 parser.add_argument('--minitest', action = 'store_true', help = 'Mini test mode (only 10 seconds are processed)')
+parser.add_argument('--ac3', action = 'store_true', help = 'AC3 audio')
 parser.add_argument('--upload', action = 'store_true', help = 'Upload script to GITHUB [BETA]')
 parser.add_argument('input', nargs='*', help = 'input file(s) (if missing process all video files)')
 args = parser.parse_args()
@@ -415,7 +415,7 @@ class MediaFile:
     if args.ac3:
       audopts += ' --aencoder ac3'
     if audio_br >= 0:
-      audopts += ' -B {}'.format(audio_br)
+      audopts += ' --ab {}'.format(audio_br)
     if len(aud_list) > 0:
       audopts += ' --audio '
       for n in range(0, len(aud_list)):
@@ -436,7 +436,7 @@ class MediaFile:
     execute_command(c)
 
   def tag(self, aud_list, sub_list, output_file):
-    if self.extension == 'mkv' and not args.m:
+    if self.extension == 'mkv':
       movnamyea = self.movie_name
       movnamyea = movnamyea.split('/')
       movnamyea = movnamyea[-1]
