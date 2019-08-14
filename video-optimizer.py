@@ -4,10 +4,18 @@
 # Imports:
 
 import os, string, argparse, subprocess, distutils.spawn, sys, shutil, random, sys, time
+from PIL import Image
+
+def generate_random_filename(prefix, suffix):
+  b = True
+  while b:
+    s = '%s%08d%s'%(prefix, random.randint(0,99999999), suffix)
+    b = os.path.exists(s)
+  return s
 
 # Constants:
 
-VERSION = 'v5.0.3'
+VERSION = 'v5.1.0'
 SELF_PATH = '/mnt/xtra/ark/bin/video-optimizer'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv', 'webm']
 TEST_TIME = 300
@@ -19,19 +27,25 @@ VIDEO_QUALITY_X264_LQ = 23
 VIDEO_QUALITY_X265 = -1
 CODEC_AUDIO_BITRATE_AAC = 128
 CODEC_AUDIO_BITRATE_AC3 = 256
+CODEC_AUDIO_BITRATE_MP3 = 256
 SPANISH = 'Spanish'
 ENGLISH = 'English'
 JAPANESE = 'Japanese'
+TEMP_BIF_DIR = generate_random_filename('temp_bifd_', '')
+THUMB_POOL_SIZE = 3
 
+FFMPEG_BIN = 'ffmpeg'
 HANDBRAKECLI_BIN = 'HandBrakeCLI'
 MEDIAINFO_BIN = 'mediainfo'
 MKVPROPEDIT_BIN = 'mkvpropedit'
+BIFTOOL_BIN = 'biftool'
 NICE_BIN = 'nice'
 
 # Options:
 
 parser = argparse.ArgumentParser(description = 'Video transcoder/processor (%s)'%(VERSION))
 parser.add_argument('-a', nargs = 1, help = 'Audio track -first track is 0- (language chosen by default)')
+parser.add_argument('-b', action = 'store_true', help = 'Generate BIF files')
 parser.add_argument('-c', action = 'store_true', help = 'Cartoon mode (CODEC specific tune for cartoon movies)')
 parser.add_argument('-d', action = 'store_true', help = 'Deinterlace video')
 parser.add_argument('-k', action = 'store_true', help = 'Matroska (MKV) output')
@@ -47,16 +61,23 @@ parser.add_argument('-z', action = 'store_true', help = 'dry run')
 parser.add_argument('--abr', nargs = 1, help = 'Audio bit rate')
 parser.add_argument('--minitest', action = 'store_true', help = 'Mini test mode (only 10 seconds are processed)')
 parser.add_argument('--ac3', action = 'store_true', help = 'AC3 audio')
+parser.add_argument('--mp3', action = 'store_true', help = 'MP3 audio')
 parser.add_argument('--upload', action = 'store_true', help = 'Upload script to GITHUB [BETA]')
 parser.add_argument('input', nargs='*', help = 'input file(s) (if missing process all video files)')
 args = parser.parse_args()
 
+FFMPEG_TEST_OPTS = ''
+FFMPEG_OVERWRITE_OPTS = ''
 HANDBRAKE_TEST_OPTS = ''
 if args.t:
+  FFMPEG_TEST_OPTS = ' -t %d '%(TEST_TIME)
   HANDBRAKE_TEST_OPTS = ' --stop-at duration:%s '%(TEST_TIME)
 else:
   if args.minitest:
+    FFMPEG_TEST_OPTS = ' -ss 00:02:00 -t 10 '
     HANDBRAKE_TEST_OPTS = ' --start-at duration:120 --stop-at duration:10 '
+if args.w:
+  FFMPEG_OVERWRITE_OPTS = ' -y '
 
 # Auxiliar functions:
 
@@ -184,6 +205,9 @@ class MediaFile:
     self.output_path += self.input_path
     print '- Output path: "%s"'%(self.output_path)
 
+    self.output_bif_file = self.input_path + self.base_input_filename + '.bif'
+    self.output_jpg_file = self.input_path + self.base_input_filename + '.jpg'
+
     self.base_output_filename = remove_brackets(self.base_input_filename)
     self.base_output_filename = self.base_output_filename.lstrip()
     self.base_output_filename = self.base_output_filename.rstrip()
@@ -215,6 +239,8 @@ class MediaFile:
       filename_info += '720p '
     if args.ac3:
       filename_info += 'AC3 '
+    if args.mp3:
+      filename_info += 'MP3 '
     if args.abr:
       filename_info += '{}K '.format(args.abr[0])
     if filename_info != '':
@@ -303,7 +329,7 @@ class MediaFile:
       o = subprocess.check_output('%s --Inform="Audio;%%Title%%***" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
       s = o.split('***')
       for t in range(0, len(s) - 1):
-        if ('descri' in s[t].lower()) or ('comenta' in s[t].lower()) or ('comment' in s[t].lower()):
+        if ('descri' in s[t].lower()) or ('comenta' in s[t].lower()) or ('comment' in s[t].lower()) or ('invidente' in s[t].lower()):
           self.info.audio_descriptions.append(True)
         else:
           self.info.audio_descriptions.append(False)
@@ -378,7 +404,10 @@ class MediaFile:
     if args.ac3:
       audio_br = CODEC_AUDIO_BITRATE_AC3
     else:
-      audio_br = CODEC_AUDIO_BITRATE_AAC
+      if args.mp3:
+        audio_br = CODEC_AUDIO_BITRATE_MP3
+      else:
+        audio_br = CODEC_AUDIO_BITRATE_AAC
     if args.abr:
       audio_br = int(args.abr[0])
 
@@ -414,6 +443,8 @@ class MediaFile:
     audopts = ' --mixdown stereo'
     if args.ac3:
       audopts += ' --aencoder ac3'
+    if args.mp3:
+      audopts += ' --aencoder mp3'
     if audio_br >= 0:
       audopts += ' --ab {}'.format(audio_br)
     if len(aud_list) > 0:
@@ -553,8 +584,138 @@ def transcode_video_file(f):
   if args.k: # Post-tagging if MKV output:
     v.tag(aud_list, [], v.output_file)
 
+def thumbnail_quality(f):
+  #import Image
+  im = Image.open(f)
+  lum1 = 0
+  lum2 = 0
+  lum3 = 0
+  for x in range(0, 104):
+    for y in range(0, 180):
+      r, g, b = im.getpixel((x, y))
+      cmin = min(r, g, b)
+      cmax = max(r, g, b)
+      l = (cmin + cmax) / 2
+      lum1 += l
+  for x in range(105, 216):
+    for y in range(0, 180):
+      cmin = min(r, g, b)
+      cmax = max(r, g, b)
+      l = (cmin + cmax) / 2
+      lum2 += l
+  for x in range(216, 320):
+    for y in range(0, 180):
+      cmin = min(r, g, b)
+      cmax = max(r, g, b)
+      l = (cmin + cmax) / 2
+      lum3 += l
+  q = abs(2 * lum2 - (lum1 + lum3))
+  im.close()
+  return q
+
+def generate_bif_file(f):
+
+  v = MediaFile(f)
+
+  if v.extension in VXT:
+    if not args.w and os.path.isfile(v.output_bif_file):
+      print '* Destination file already exists (skipping)'
+      return
+  else:
+    print '* ERROR: input file is not a video file (skipping)'
+    return
+
+  if not args.z:
+    try:
+      shutil.rmtree(TEMP_BIF_DIR)
+    except:
+      pass
+
+  print '> Generating thumbnails...'
+
+  if not args.z:
+    os.mkdir(TEMP_BIF_DIR)
+  c = '%s %s -i "%s" -f image2 -r 1/10 -s 320x180 %s/%%08d.jpg'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, v.input_file, TEMP_BIF_DIR)
+  execute_command(c)
+
+  lis = os.listdir(TEMP_BIF_DIR)
+  lis = sorted(lis)
+  tot = len(lis)
+  print '* Thumbnails generated: %d'%(tot)
+
+  print '* Removing 1st thumbnail... ',
+  if not args.z:
+    try:
+      os.remove('%s/00000001.jpg'%(TEMP_BIF_DIR))
+      print 'OK'
+    except:
+      print 'ERROR'
+  print '* Removing 2nd thumbnail... ',
+  if not args.z:
+    try:
+      os.remove('%s/00000002.jpg'%(TEMP_BIF_DIR))
+      print 'OK'
+    except:
+      print 'ERROR'
+  k = 1
+  while k <= tot - 2:
+    tna = '%08d.jpg'%(k + 2)
+    tnb = '%08d.jpg'%(k)
+    print '* Renaming thumbnail %s to %s...'%(tna, tnb),
+    if not args.z:
+      try:
+        os.rename('%s/%s'%(TEMP_BIF_DIR, tna), '%s/%s'%(TEMP_BIF_DIR, tnb))
+        print 'OK'
+      except:
+        print 'ERROR'
+    k += 1
+
+  print '* Extracting thumbnail...'
+  total_thumbs = len(os.listdir(TEMP_BIF_DIR))
+  thumb = []
+  for k in range(0, THUMB_POOL_SIZE):
+    thumb.append(int(total_thumbs / 10) + k)
+  thumbfile = []
+  thumbquality = []
+  print '- Total thumbnails = %d'%(total_thumbs)
+  for t in thumb:
+    f = '%s/%08d.jpg'%(TEMP_BIF_DIR, t)
+    q = thumbnail_quality(f)
+    thumbfile.append(f)
+    thumbquality.append(q)
+    print '- Thumbnail candidate: %s (quality = %g)'%(f, q)
+  maxqfile = thumbfile[thumbquality.index(max(thumbquality))]
+  print '- Thumbnail chosen = %s'%(maxqfile)
+  if not args.z:
+    try:
+      os.nice(19)
+      shutil.copyfile(maxqfile, '%s'%(v.output_jpg_file))
+      print 'OK'
+    except:
+      print 'ERROR'
+
+  print '* Compiling BIF file...'
+  c = '%s -t 10000 %s'%(BIFTOOL_BIN, TEMP_BIF_DIR)
+  execute_command(c)
+
+  print '* Renaming BIF file...',
+  if not args.z:
+    try:
+      #os.rename('%s.bif'%(TEMP_BIF_DIR), '%s.bif'%(v.base_filename))
+      os.rename('%s.bif'%(TEMP_BIF_DIR), '%s'%(v.output_bif_file))
+      print 'OK'
+    except:
+      print 'ERROR'
+    try:
+      shutil.rmtree(TEMP_BIF_DIR)
+    except:
+      pass
+
 def process_file(f):
-  transcode_video_file(f)
+  if args.b:
+    generate_bif_file(f)
+  else:
+    transcode_video_file(f)
 
 def process_directory(dir):
   lis = os.listdir(dir)
@@ -572,7 +733,8 @@ def process_directory(dir):
             os.makedirs(nueva_ruta)
       process_directory(rut)
     else:
-      transcode_video_file(rut)
+      #transcode_video_file(rut)
+      process_file(rut)
 
 def verify_software(b, critical):
   if not b == '':
@@ -590,6 +752,7 @@ def verify_software(b, critical):
 verify_software(HANDBRAKECLI_BIN, True)
 verify_software(MEDIAINFO_BIN, True)
 verify_software(MKVPROPEDIT_BIN, True)
+verify_software(BIFTOOL_BIN, True)
 verify_software(NICE_BIN, True)
 
 if args.upload:
