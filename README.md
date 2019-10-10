@@ -8,4 +8,4 @@ Dependencies:
   * MediaInfo
   * MKVPropEdit
 
-Compatibility: Linux only
+Compatibility: Linux and Windows

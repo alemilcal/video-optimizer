@@ -4,22 +4,13 @@
 # Imports:
 
 import os, string, argparse, subprocess, distutils.spawn, sys, shutil, random, sys, time
-from PIL import Image
-
-def generate_random_filename(prefix, suffix):
-  b = True
-  while b:
-    s = '%s%08d%s'%(prefix, random.randint(0,99999999), suffix)
-    b = os.path.exists(s)
-  return s
 
 # Constants:
 
-VERSION = 'v5.1.0'
+VERSION = 'v5.4.0'
 SELF_PATH = '/mnt/xtra/ark/bin/video-optimizer'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv', 'webm']
 TEST_TIME = 300
-#CODEC_PRESET_X264 = 'fast'
 CODEC_PRESET_X264 = 'veryfast'
 CODEC_PRESET_X265 = 'medium'
 VIDEO_QUALITY_X264 = 21
@@ -31,21 +22,27 @@ CODEC_AUDIO_BITRATE_MP3 = 256
 SPANISH = 'Spanish'
 ENGLISH = 'English'
 JAPANESE = 'Japanese'
-TEMP_BIF_DIR = generate_random_filename('temp_bifd_', '')
+LATIN = 'Latin'
 THUMB_POOL_SIZE = 3
 
-FFMPEG_BIN = 'ffmpeg'
-HANDBRAKECLI_BIN = 'HandBrakeCLI'
-MEDIAINFO_BIN = 'mediainfo'
-MKVPROPEDIT_BIN = 'mkvpropedit'
-BIFTOOL_BIN = 'biftool'
-NICE_BIN = 'nice'
+if os.name == 'posix':
+  FFMPEG_BIN = 'ffmpeg'
+  HANDBRAKECLI_BIN = 'HandBrakeCLI'
+  MEDIAINFO_BIN = 'mediainfo'
+  MKVPROPEDIT_BIN = 'mkvpropedit'
+  NICE_BIN = 'nice'
+else:
+  BIN_PATH = 'C:/script/bin/'
+  FFMPEG_BIN = '%sffmpeg.exe'%(BIN_PATH)
+  HANDBRAKECLI_BIN = '%sHandBrakeCLI.exe'%(BIN_PATH)
+  MEDIAINFO_BIN = '%sMediaInfo.exe'%(BIN_PATH)
+  MKVPROPEDIT_BIN = '%smkvpropedit.exe'%(BIN_PATH)
+  NICE_BIN = ''
 
 # Options:
 
 parser = argparse.ArgumentParser(description = 'Video transcoder/processor (%s)'%(VERSION))
 parser.add_argument('-a', nargs = 1, help = 'Audio track -first track is 0- (language chosen by default)')
-parser.add_argument('-b', action = 'store_true', help = 'Generate BIF files')
 parser.add_argument('-c', action = 'store_true', help = 'Cartoon mode (CODEC specific tune for cartoon movies)')
 parser.add_argument('-d', action = 'store_true', help = 'Deinterlace video')
 parser.add_argument('-k', action = 'store_true', help = 'Matroska (MKV) output')
@@ -59,9 +56,11 @@ parser.add_argument('-w', action = 'store_true', help = 'Overwrite existing file
 parser.add_argument('-x', action = 'store_true', help = 'X265 codec')
 parser.add_argument('-z', action = 'store_true', help = 'dry run')
 parser.add_argument('--abr', nargs = 1, help = 'Audio bit rate')
-parser.add_argument('--minitest', action = 'store_true', help = 'Mini test mode (only 10 seconds are processed)')
 parser.add_argument('--ac3', action = 'store_true', help = 'AC3 audio')
+parser.add_argument('--ipadmini', action = 'store_true', help = 'iPad mini resolution (576p)')
+parser.add_argument('--minitest', action = 'store_true', help = 'Mini test mode (only 10 seconds are processed)')
 parser.add_argument('--mp3', action = 'store_true', help = 'MP3 audio')
+parser.add_argument('--galaxy', action = 'store_true', help = 'Samsung Galaxy resolution (480p)')
 parser.add_argument('--upload', action = 'store_true', help = 'Upload script to GITHUB [BETA]')
 parser.add_argument('input', nargs='*', help = 'input file(s) (if missing process all video files)')
 args = parser.parse_args()
@@ -103,7 +102,10 @@ def language_code(name):
       if name == JAPANESE:
         return 'jpn'
       else:
-        return 'unk'
+        if name == LATIN:
+          return 'lat'
+        else:
+          return 'unk'
 
 def boolean2integer(b):
   if b:
@@ -205,9 +207,6 @@ class MediaFile:
     self.output_path += self.input_path
     print '- Output path: "%s"'%(self.output_path)
 
-    self.output_bif_file = self.input_path + self.base_input_filename + '.bif'
-    self.output_jpg_file = self.input_path + self.base_input_filename + '.jpg'
-
     self.base_output_filename = remove_brackets(self.base_input_filename)
     self.base_output_filename = self.base_output_filename.lstrip()
     self.base_output_filename = self.base_output_filename.rstrip()
@@ -237,6 +236,10 @@ class MediaFile:
       filename_info += 'Q{} '.format(args.q[0])
     if args.l:
       filename_info += '720p '
+    if args.ipadmini:
+      filename_info += '576p '
+    if args.galaxy:
+      filename_info += '480p '
     if args.ac3:
       filename_info += 'AC3 '
     if args.mp3:
@@ -255,7 +258,6 @@ class MediaFile:
     else:
       self.output_file += '.mp4'
 
-    #print '- Output path: "%s"/'%(self.output_path)
     print '- Output file name: "%s"'%(self.output_file)
 
     # Movie name:
@@ -274,7 +276,7 @@ class MediaFile:
     self.info = MediaInfo()
     if self.extension == 'mkv' or self.extension == 'mp4' or self.extension == 'avi' or self.extension == 'wmv':
       print '> Extracting file media info...'
-      # Video with
+      # Video width
       o = subprocess.check_output('%s --Inform="Video;%%Width%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
       o = o.rstrip()
       try:
@@ -393,7 +395,7 @@ class MediaFile:
       quantizer = VIDEO_QUALITY_X265
     else:
       codec_pre = CODEC_PRESET_X264
-      if args.l:
+      if args.l or args.ipadmini or args.galaxy:
         quantizer = VIDEO_QUALITY_X264_LQ
       else:
         quantizer = VIDEO_QUALITY_X264
@@ -423,7 +425,13 @@ class MediaFile:
     if args.l:
       options += ' --maxWidth 1280'
     else:
-      options += ' --width 1920'
+      if args.ipadmini:
+        options += ' --maxWidth 1024'
+      else:
+        if args.galaxy:
+          options += ' --maxWidth 800'
+        else:
+          options += ' --width 1920'
 
     if args.x:
       if args.c:
@@ -539,7 +547,9 @@ def transcode_video_file(f):
   track_audio_spa = v.info.select_audio_track(SPANISH)
   track_audio_eng = v.info.select_audio_track(ENGLISH)
   track_audio_jpn = v.info.select_audio_track(JAPANESE)
+  track_sub_spa   = v.info.select_sub_track(SPANISH, False)
   track_sub_spa_f = v.info.select_sub_track(SPANISH, True)
+  track_sub_lat_f = v.info.select_sub_track(LATIN, True)
 
   track_audio = 0
   if track_audio_jpn >= 0: # Japanese audio
@@ -555,6 +565,9 @@ def transcode_video_file(f):
   sub_list = []
   if track_sub_spa_f >= 0:
     sub_list.append(track_sub_spa_f)
+  else:
+    if track_audio_spa < 0 and track_sub_lat_f >= 0:
+      sub_list.append(track_sub_lat_f)
 
   print ''
   print '<<<<<<<<<< TRANSCODING PLANNING >>>>>>>>>>'
@@ -563,7 +576,13 @@ def transcode_video_file(f):
   if args.l:
     print ' - Video resolution: 720p'
   else:
-    print ' - Video resolution: 1080p'
+    if args.ipadmini:
+      print ' - Video resolution: 576p'
+    else:
+      if args.galaxy:
+        print ' - Video resolution: 480p'
+      else:
+        print ' - Video resolution: 1080p'
   if v.info.audio_languages:
     print ' - Audio language: %s'%(v.info.audio_languages[aud_list[0]])
   if not sub_list:
@@ -584,141 +603,12 @@ def transcode_video_file(f):
   if args.k: # Post-tagging if MKV output:
     v.tag(aud_list, [], v.output_file)
 
-def thumbnail_quality(f):
-  #import Image
-  im = Image.open(f)
-  lum1 = 0
-  lum2 = 0
-  lum3 = 0
-  for x in range(0, 104):
-    for y in range(0, 180):
-      r, g, b = im.getpixel((x, y))
-      cmin = min(r, g, b)
-      cmax = max(r, g, b)
-      l = (cmin + cmax) / 2
-      lum1 += l
-  for x in range(105, 216):
-    for y in range(0, 180):
-      cmin = min(r, g, b)
-      cmax = max(r, g, b)
-      l = (cmin + cmax) / 2
-      lum2 += l
-  for x in range(216, 320):
-    for y in range(0, 180):
-      cmin = min(r, g, b)
-      cmax = max(r, g, b)
-      l = (cmin + cmax) / 2
-      lum3 += l
-  q = abs(2 * lum2 - (lum1 + lum3))
-  im.close()
-  return q
-
-def generate_bif_file(f):
-
-  v = MediaFile(f)
-
-  if v.extension in VXT:
-    if not args.w and os.path.isfile(v.output_bif_file):
-      print '* Destination file already exists (skipping)'
-      return
-  else:
-    print '* ERROR: input file is not a video file (skipping)'
-    return
-
-  if not args.z:
-    try:
-      shutil.rmtree(TEMP_BIF_DIR)
-    except:
-      pass
-
-  print '> Generating thumbnails...'
-
-  if not args.z:
-    os.mkdir(TEMP_BIF_DIR)
-  c = '%s %s -i "%s" -f image2 -r 1/10 -s 320x180 %s/%%08d.jpg'%(FFMPEG_BIN, FFMPEG_TEST_OPTS, v.input_file, TEMP_BIF_DIR)
-  execute_command(c)
-
-  lis = os.listdir(TEMP_BIF_DIR)
-  lis = sorted(lis)
-  tot = len(lis)
-  print '* Thumbnails generated: %d'%(tot)
-
-  print '* Removing 1st thumbnail... ',
-  if not args.z:
-    try:
-      os.remove('%s/00000001.jpg'%(TEMP_BIF_DIR))
-      print 'OK'
-    except:
-      print 'ERROR'
-  print '* Removing 2nd thumbnail... ',
-  if not args.z:
-    try:
-      os.remove('%s/00000002.jpg'%(TEMP_BIF_DIR))
-      print 'OK'
-    except:
-      print 'ERROR'
-  k = 1
-  while k <= tot - 2:
-    tna = '%08d.jpg'%(k + 2)
-    tnb = '%08d.jpg'%(k)
-    print '* Renaming thumbnail %s to %s...'%(tna, tnb),
-    if not args.z:
-      try:
-        os.rename('%s/%s'%(TEMP_BIF_DIR, tna), '%s/%s'%(TEMP_BIF_DIR, tnb))
-        print 'OK'
-      except:
-        print 'ERROR'
-    k += 1
-
-  print '* Extracting thumbnail...'
-  total_thumbs = len(os.listdir(TEMP_BIF_DIR))
-  thumb = []
-  for k in range(0, THUMB_POOL_SIZE):
-    thumb.append(int(total_thumbs / 10) + k)
-  thumbfile = []
-  thumbquality = []
-  print '- Total thumbnails = %d'%(total_thumbs)
-  for t in thumb:
-    f = '%s/%08d.jpg'%(TEMP_BIF_DIR, t)
-    q = thumbnail_quality(f)
-    thumbfile.append(f)
-    thumbquality.append(q)
-    print '- Thumbnail candidate: %s (quality = %g)'%(f, q)
-  maxqfile = thumbfile[thumbquality.index(max(thumbquality))]
-  print '- Thumbnail chosen = %s'%(maxqfile)
-  if not args.z:
-    try:
-      os.nice(19)
-      shutil.copyfile(maxqfile, '%s'%(v.output_jpg_file))
-      print 'OK'
-    except:
-      print 'ERROR'
-
-  print '* Compiling BIF file...'
-  c = '%s -t 10000 %s'%(BIFTOOL_BIN, TEMP_BIF_DIR)
-  execute_command(c)
-
-  print '* Renaming BIF file...',
-  if not args.z:
-    try:
-      #os.rename('%s.bif'%(TEMP_BIF_DIR), '%s.bif'%(v.base_filename))
-      os.rename('%s.bif'%(TEMP_BIF_DIR), '%s'%(v.output_bif_file))
-      print 'OK'
-    except:
-      print 'ERROR'
-    try:
-      shutil.rmtree(TEMP_BIF_DIR)
-    except:
-      pass
-
 def process_file(f):
-  if args.b:
-    generate_bif_file(f)
-  else:
-    transcode_video_file(f)
+  transcode_video_file(f)
 
 def process_directory(dir):
   lis = os.listdir(dir)
+  lis.sort()
   for arc in lis:
     rut = dir + '/' + arc
     if os.path.isdir(rut):
@@ -733,7 +623,6 @@ def process_directory(dir):
             os.makedirs(nueva_ruta)
       process_directory(rut)
     else:
-      #transcode_video_file(rut)
       process_file(rut)
 
 def verify_software(b, critical):
@@ -752,7 +641,6 @@ def verify_software(b, critical):
 verify_software(HANDBRAKECLI_BIN, True)
 verify_software(MEDIAINFO_BIN, True)
 verify_software(MKVPROPEDIT_BIN, True)
-verify_software(BIFTOOL_BIN, True)
 verify_software(NICE_BIN, True)
 
 if args.upload:
