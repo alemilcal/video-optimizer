@@ -7,7 +7,7 @@ import os, string, argparse, subprocess, distutils.spawn, sys, shutil, random, s
 
 # Constants:
 
-VERSION = 'v5.6.0'
+VERSION = 'v5.7.1'
 SELF_PATH = '/mnt/xtra/ark/bin/video-optimizer'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv', 'webm']
 TEST_TIME = 300
@@ -47,6 +47,7 @@ parser.add_argument('-c', action = 'store_true', help = 'Cartoon mode (CODEC spe
 parser.add_argument('-d', action = 'store_true', help = 'Deinterlace video')
 parser.add_argument('-k', action = 'store_true', help = 'Matroska (MKV) output')
 parser.add_argument('-l', action = 'store_true', help = 'Low resolution (720p)')
+parser.add_argument('-lp', action = 'store_true', help = 'Low resolution portrait (1280p)')
 parser.add_argument('-o', nargs = 1, help = 'Output path')
 parser.add_argument('-q', nargs = 1, help = 'Quantizer factor')
 parser.add_argument('-r', action = 'store_true', help = 'Rebuild original folder structure')
@@ -62,6 +63,8 @@ parser.add_argument('--ipadmini', action = 'store_true', help = 'iPad mini resol
 parser.add_argument('--minitest', action = 'store_true', help = 'Mini test mode (only 10 seconds are processed)')
 parser.add_argument('--mp3', action = 'store_true', help = 'MP3 audio')
 parser.add_argument('--galaxy', action = 'store_true', help = 'Samsung Galaxy resolution (480p)')
+parser.add_argument('--rotate90', action = 'store_true', help = 'Rotate clockwise 90 degrees')
+parser.add_argument('--rotate270', action = 'store_true', help = 'Rotate clockwise 270 degrees')
 parser.add_argument('--upload', action = 'store_true', help = 'Upload script to GITHUB [BETA]')
 parser.add_argument('input', nargs='*', help = 'input file(s) (if missing process all video files)')
 args = parser.parse_args()
@@ -237,6 +240,8 @@ class MediaFile:
       filename_info += 'Q{} '.format(args.q[0])
     if args.l:
       filename_info += '720p '
+    if args.lp:
+      filename_info += '1280p '
     if args.ipadmini:
       filename_info += '576p '
     if args.iphone:
@@ -363,6 +368,8 @@ class MediaFile:
         # Subtitle languages
         o = subprocess.check_output('%s --Inform="General;%%Text_Language_List%%" "%s"'%(MEDIAINFO_BIN, self.input_file), shell=True)
         o = o.rstrip()
+        if o[-1] == '/':
+          o = o + ' Unknown'
         o = o.split(' / ')
         self.info.sub_languages = o
         # Subtitle formats
@@ -401,7 +408,7 @@ class MediaFile:
       quantizer = VIDEO_QUALITY_X265
     else:
       codec_pre = CODEC_PRESET_X264
-      if args.l or args.ipadmini or args.galaxy or args.iphone:
+      if args.l or args.lp or args.ipadmini or args.galaxy or args.iphone:
         quantizer = VIDEO_QUALITY_X264_LQ
       else:
         quantizer = VIDEO_QUALITY_X264
@@ -428,8 +435,16 @@ class MediaFile:
     else:
       options += ' --encoder x264 --encoder-profile high --encoder-level 4.1'
 
-    if args.l:
-      options += ' --maxWidth 1280'
+    if args.rotate90:
+      options += ' --rotate=angle=90:hflip=0'
+    if args.rotate270:
+      options += ' --rotate=angle=270:hflip=0'
+
+    if args.l or args.lp:
+      if args.l:
+        options += ' --maxWidth 1280'
+      else:
+        options += ' --maxWidth 720'
     else:
       if args.ipadmini:
         options += ' --maxWidth 1024'
