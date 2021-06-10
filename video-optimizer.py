@@ -7,7 +7,7 @@ import os, string, argparse, subprocess, distutils.spawn, sys, shutil, random, s
 
 # Constants:
 
-VERSION = 'v5.7.1'
+VERSION = 'v5.8.4'
 SELF_PATH = '/mnt/xtra/ark/bin/video-optimizer'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv', 'webm']
 TEST_TIME = 300
@@ -19,6 +19,7 @@ VIDEO_QUALITY_X265 = -1
 CODEC_AUDIO_BITRATE_AAC = 128
 CODEC_AUDIO_BITRATE_AC3 = 256
 CODEC_AUDIO_BITRATE_MP3 = 256
+CODEC_AUDIO_BITRATE_OPUS = 128
 SPANISH = 'Spanish'
 ENGLISH = 'English'
 JAPANESE = 'Japanese'
@@ -63,6 +64,7 @@ parser.add_argument('--ipadmini', action = 'store_true', help = 'iPad mini resol
 parser.add_argument('--minitest', action = 'store_true', help = 'Mini test mode (only 10 seconds are processed)')
 parser.add_argument('--mp3', action = 'store_true', help = 'MP3 audio')
 parser.add_argument('--galaxy', action = 'store_true', help = 'Samsung Galaxy resolution (480p)')
+parser.add_argument('--opus', action = 'store_true', help = 'Opus audio')
 parser.add_argument('--rotate90', action = 'store_true', help = 'Rotate clockwise 90 degrees')
 parser.add_argument('--rotate270', action = 'store_true', help = 'Rotate clockwise 270 degrees')
 parser.add_argument('--upload', action = 'store_true', help = 'Upload script to GITHUB [BETA]')
@@ -234,26 +236,32 @@ class MediaFile:
     self.base_output_filename = self.base_output_filename.replace('¡', '')
     self.base_output_filename = self.base_output_filename.replace('!', '')
     filename_info = ''
-    if args.x:
-      filename_info += 'X265 '
-    if args.q:
-      filename_info += 'Q{} '.format(args.q[0])
+    #if args.x:
+    #  filename_info += 'X265 '
+    #if args.q:
+    #  filename_info += 'Q{} '.format(args.q[0])
+    #if args.l:
+    #  filename_info += '720p '
     if args.l:
-      filename_info += '720p '
-    if args.lp:
-      filename_info += '1280p '
-    if args.ipadmini:
-      filename_info += '576p '
-    if args.iphone:
-      filename_info += '640p '
-    if args.galaxy:
-      filename_info += '480p '
-    if args.ac3:
-      filename_info += 'AC3 '
-    if args.mp3:
-      filename_info += 'MP3 '
-    if args.abr:
-      filename_info += '{}K '.format(args.abr[0])
+      filename_info += 'LQ'
+    else:
+      filename_info += 'HQ'
+    #if args.lp:
+    #  filename_info += '1280p '
+    #if args.ipadmini:
+    #  filename_info += '576p '
+    #if args.iphone:
+    #  filename_info += '640p '
+    #if args.galaxy:
+    #  filename_info += '480p '
+    #if args.ac3:
+    #  filename_info += 'AC3 '
+    #if args.opus:
+    #  filename_info += 'OPUS '
+    #if args.mp3:
+    #  filename_info += 'MP3 '
+    #if args.abr:
+    #  filename_info += '{}K '.format(args.abr[0])
     if filename_info != '':
       self.base_output_filename += ' [%s]'%(filename_info.rstrip())
 
@@ -403,6 +411,8 @@ class MediaFile:
   def transcode(self, input_file, aud_list, sub_list):
     print '* Transcoding media file "%s" to "%s"...'%(input_file, self.output_file)
 
+    ENC_OPTS = ''
+
     if args.x:
       codec_pre = CODEC_PRESET_X265
       quantizer = VIDEO_QUALITY_X265
@@ -422,7 +432,10 @@ class MediaFile:
       if args.mp3:
         audio_br = CODEC_AUDIO_BITRATE_MP3
       else:
-        audio_br = CODEC_AUDIO_BITRATE_AAC
+        if args.opus:
+          audio_br = CODEC_AUDIO_BITRATE_OPUS
+        else:
+          audio_br = CODEC_AUDIO_BITRATE_AAC
     if args.abr:
       audio_br = int(args.abr[0])
 
@@ -459,12 +472,22 @@ class MediaFile:
 
     if args.x:
       if args.c:
-        options += ' --encopts psy-rd=0.4:aq-strength=0.4:deblock=1,1:bframes=6'
+        ENC_OPTS += 'psy-rd=0.4:aq-strength=0.4:deblock=1,1:bframes=6:'
     else:
       if args.c:
         options += ' --encoder-tune animation'
       else:
         options += ' --encoder-tune film'
+
+    if args.l:
+      maxrate = 2000 * 0.90 - audio_br
+      ENC_OPTS += 'vbv-maxrate={}:vbv-bufsize={}:'.format(maxrate, maxrate * 10)
+    else:
+      maxrate = 8000 * 0.90 - audio_br
+      ENC_OPTS += 'vbv-maxrate={}:vbv-bufsize={}:'.format(maxrate, maxrate * 10)
+
+    if not ENC_OPTS == '':
+      options += '  --encopts {}'.format(ENC_OPTS[:-1])
 
     if quantizer >= 0:
       options += ' --quality {}'.format(quantizer)
@@ -475,6 +498,8 @@ class MediaFile:
     audopts = ' --mixdown stereo'
     if args.ac3:
       audopts += ' --aencoder ac3'
+    if args.opus:
+      audopts += ' --aencoder opus'
     if args.mp3:
       audopts += ' --aencoder mp3'
     if audio_br >= 0:
