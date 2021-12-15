@@ -7,7 +7,7 @@ import os, string, argparse, subprocess, distutils.spawn, sys, shutil, random, s
 
 # Constants:
 
-VERSION = 'v5.15.2'
+VERSION = 'v5.15.3'
 SELF_PATH = '/mnt/xtra/ark/bin/video-optimizer'
 VXT = ['mkv', 'mp4', 'm4v', 'mov', 'mpg', 'mpeg', 'avi', 'vob', 'mts', 'm2ts', 'wmv', 'flv', 'webm']
 TEST_TIME = 300
@@ -27,8 +27,8 @@ LATIN = 'Latin'
 THUMB_POOL_SIZE = 3
 #FONT_NAME = 'Arial'
 FONT_NAME = 'Trebuchet MS'
-FONT_BOLD = 0
-FONT_SIZE = 96
+FONT_BOLD = '0'
+FONT_SIZE = '96'
 
 if os.name == 'posix':
   FFMPEG_BIN = 'ffmpeg'
@@ -159,16 +159,26 @@ def analiza_estilos():
       s = ''
       for j in range(9, len(x)):
         s = s + x[j]
+      if x[3] == 'Signs':
+        print '<<<<<%s>>>>>'%(s)
       s = re.sub('{[^}]+}', '', s)
-      s = re.sub('[\-]+', '', s)
-      s = re.sub('[0-9]+', '', s)
-      s = re.sub(' [a-z] ', '', s)
-      s = re.sub(' [A-Z] ', '', s)
-      s = re.sub('[^a-z] ', '', s)
-      s = re.sub('[^A-Z] ', '', s)
-      s = re.sub('[ ]+', '', s)
-      s = re.sub('[\r]', '', s)
-      s = re.sub('[\n]', '', s)
+      #s = re.sub('[ ]+', '', s)
+      #s = re.sub('[\.]+', '', s)
+      #s = re.sub('[\-]+', '', s)
+      #s = re.sub('[0-9]+', '', s)
+      s = re.sub(' [a-zA-Z] ', '', s)
+      s = re.sub('^[a-zA-Z] ', '', s)
+      #s = re.sub(' [A-Z] ', '', s)
+      #s = re.sub('^[a-z] ', '', s)
+      #s = re.sub('^[A-Z] ', '', s)
+      #s = re.sub('[^a-z] ', '', s)
+      #s = re.sub('[^A-Z] ', '', s)
+      #s = re.sub('[ ]+', '', s)
+      #s = re.sub('[\.]+', '', s)
+      #s = re.sub('[\r]', '', s)
+      s = re.sub('[^a-zA-Z]', '', s)
+      if x[3] == 'Signs':
+        print '<<<<<%s>>>>>'%(s)
       apariciones[i] = apariciones[i] + len(s)
   f.close()
   f = open('temp1.ass', 'r')
@@ -200,6 +210,13 @@ def encuentra_estilos_cursiva(resumen_estilos): # ***********************
       return resumen_estilos[i][1]
   else:
     return ''
+
+def cambia_formato(x, f, c, v):
+  try:
+    x[f.index(c.lower())] = v
+  except:
+    pass
+  return x
 
 # Classes:
 
@@ -647,16 +664,17 @@ class MediaFile:
         pass
       c = '{} {} -y -i "{}" -map 0:s:{} -vn -an -c:s copy temp1.ass'.format(FFMPEG_BIN, FFMPEG_TEST_OPTS, input_file, sub_list[0])
       execute_command(c, True)
-      h = 'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n'
+      #h = 'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n'
       #a = 'Style: Gen_Main,Trebuchet MS,%s,&H00FFFFFF,&H00FFFF00,&H00000000,&H00222222,0,0,0,0,100,100,0,0,1,10,2,2,0,0,100,0018\n'%(FONT_SIZE)
       #b = 'Style: Gen_Ital,Trebuchet MS,%s,&H00FFFFFF,&H00FFFF00,&H00000000,&H00222222,0,1,0,0,100,100,0,0,1,10,2,2,0,0,100,0018\n'%(FONT_SIZE)
-      a = 'Style: Gen_Main,%s,%s,&H00FFFFFF,&H00FFFF00,&H00000000,&H00222222,%s,0,0,0,100,100,0,0,1,10,2,2,20,10,100,0018\n'%(FONT_NAME, FONT_SIZE, FONT_BOLD)
-      b = 'Style: Gen_Ital,%s,%s,&H00FFFFFF,&H00FFFF00,&H00000000,&H00222222,%s,1,0,0,100,100,0,0,1,10,2,2,20,10,100,0018\n'%(FONT_NAME, FONT_SIZE, FONT_BOLD)
-      resumen_estilos = analiza_estilos()
-      est_pri = encuentra_estilos_principal(resumen_estilos)
-      est_cur = encuentra_estilos_cursiva(resumen_estilos)
+      #a = 'Style: Gen_Main,%s,%s,&H00FFFFFF,&H00FFFF00,&H00000000,&H00222222,%s,0,0,0,100,100,0,0,1,10,2,2,20,10,100,0018\n'%(FONT_NAME, FONT_SIZE, FONT_BOLD)
+      #b = 'Style: Gen_Ital,%s,%s,&H00FFFFFF,&H00FFFF00,&H00000000,&H00222222,%s,1,0,0,100,100,0,0,1,10,2,2,20,10,100,0018\n'%(FONT_NAME, FONT_SIZE, FONT_BOLD)
+      #resumen_estilos = analiza_estilos()
+      #est_pri = encuentra_estilos_principal(resumen_estilos)
+      #est_cur = encuentra_estilos_cursiva(resumen_estilos)
       f = open('temp1.ass', 'r')
       g = open('temp2.ass', 'w')
+      en_styles = 0
       while True:
         l = f.readline()
         if not l:
@@ -670,32 +688,56 @@ class MediaFile:
         if empieza(l, 'PlayResY:'):
           g.write('PlayResY: 1080\n')
           continue
-        if empieza(l, '[V4+ Styles]'):
+        if empieza(l, '[V4 Styles]'):
+          en_styles = 1
           g.write(l)
           continue
-        if empieza(l, 'Format: %s'%(est_pri)):
-          g.write(h)
+        if empieza(l, '[V4+ Styles]'):
+          en_styles = 2
+          g.write(l)
           continue
-        if empieza(l, 'Style: %s'%(est_pri)):
-          g.write(a)
+        if en_styles >= 1 and en_styles <= 2 and empieza(l, 'Format:'):
+          en_styles = en_styles * 10
+          x = l
+          x = x.lower()
+          x = x.split(',')
+          x[0] = x[0].split(':')[1]
+          for n in range(len(x)):
+            x[n] = x[n].lstrip()
+            x[n] = x[n].rstrip()
+          formato = x
+          g.write(l)
           continue
-        if not(est_cur == '') and empieza(l, 'Format: %s'%(est_cur)):
-          g.write(h)
-          continue
-        if not(est_cur == '') and empieza(l, 'Style: %s'%(est_cur)):
-          g.write(b)
-          continue
-        if empieza(l, 'Dialogue:') or empieza(l, 'Comment:'):
+        if empieza(l, 'Style:'):
+          if args.v:
+            print 'Style substitution: %s ===>'%(l)
           x = l.split(',')
-          if x[3] == est_pri:
-            x[3] = 'Gen_Main'
-            l = ','.join(x)
-            #l = re.sub('{[^}]+}', '', l)
-          else:
-            if not(est_cur == '') and x[3] == est_cur:
-              x[3] = 'Gen_Ital'
-              l = ','.join(x)
-              #l = re.sub('{[^}]+}', '', l)
+          x = cambia_formato(x, formato, 'Fontname', FONT_NAME)
+          x = cambia_formato(x, formato, 'Fontsize', FONT_SIZE)
+          x = cambia_formato(x, formato, 'PrimaryColour', '&H00FFFFFF')
+          x = cambia_formato(x, formato, 'SecondaryColour', '&H00FFFF00')
+          x = cambia_formato(x, formato, 'BackColour', '&H00222222')
+          x = cambia_formato(x, formato, 'Bold', FONT_BOLD)
+          x = cambia_formato(x, formato, 'BorderStyle', '1') # Con borde
+          x = cambia_formato(x, formato, 'Outline', '10') # Ancho del borde en pixeles
+          x = cambia_formato(x, formato, 'Shadow', '2')
+          x = cambia_formato(x, formato, 'Alignment', '2')
+          x = cambia_formato(x, formato, 'MarginL', '0')
+          x = cambia_formato(x, formato, 'MarginR', '0')
+          x = cambia_formato(x, formato, 'MarginV', '100')
+          x = cambia_formato(x, formato, 'AlphaLevel', '0')
+          if en_styles == 10: # V4 Styles
+            x = cambia_formato(x, formato, 'TertiaryColour', '&H00000000')
+          else: # V4+ Styles
+            x = cambia_formato(x, formato, 'OutlineColour', '&H00000000')
+            x = cambia_formato(x, formato, 'Underline', '0')
+            x = cambia_formato(x, formato, 'StrikeOut', '0')
+            x = cambia_formato(x, formato, 'ScaleX', '100')
+            x = cambia_formato(x, formato, 'ScaleY', '100')
+            x = cambia_formato(x, formato, 'Spacing', '0')
+          l = ','.join(x)
+          if args.v:
+            print l
           g.write(l)
           continue
         g.write(l)
@@ -708,12 +750,21 @@ class MediaFile:
       input_file = 'temp.mkv'
       subopts = ' --subtitle 1 --subtitle-burned'
       if args.v:
-        print 'Styles founded:'
-        for r in resumen_estilos:
-          print r
-        print 'Main style:    "%s"'%(est_pri)
-        print 'Italic style:  "%s"'%(est_cur)
-        
+        print 'Subtitle format: '
+        print formato
+      #if args.v:
+      #  print 'Styles founded:'
+      #  for r in resumen_estilos:
+      #    print r
+      #  print 'Main style:    "%s"'%(est_pri)
+      #  print 'Italic style:  "%s"'%(est_cur)
+      #  wait_counter = 10
+      #  while wait_counter > 0:
+      #    sys.stdout.write('\r* Starting muxing in %02d s...'%(wait_counter))
+      #    sys.stdout.flush()
+      #    time.sleep(1)
+      #    wait_counter -= 1
+      #  print ''
     # Transcoding:
     if args.jss:
       c = 'mv "%s" "%s"'%(input_file, self.output_file)
